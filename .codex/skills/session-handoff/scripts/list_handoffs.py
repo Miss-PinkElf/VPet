@@ -2,21 +2,25 @@
 """
 List available handoff documents in the current project.
 
-Searches for handoff documents in .claude/handoffs/ and displays:
+Searches for handoff documents in .codex/explore/<explore-slug>/handoffs/ and displays:
 - Filename with date
 - Title extracted from document
 - Status (if marked complete)
 
 Usage:
-    python list_handoffs.py           # List handoffs in current project
-    python list_handoffs.py /path     # List handoffs in specified path
+    python list_handoffs.py                                 # List handoffs in current project
+    python list_handoffs.py .codex/explore/auth-debug      # List handoffs in one explore workspace
+    python list_handoffs.py /path/to/project               # List handoffs across all explore workspaces
 """
 
+import argparse
 import os
 import re
 import sys
 from datetime import datetime
 from pathlib import Path
+
+from handoff_paths import detect_explore_dir_from_path, find_project_root
 
 
 def extract_title(filepath: Path) -> str:
@@ -64,28 +68,50 @@ def parse_date_from_filename(filename: str) -> datetime | None:
     return None
 
 
-def list_handoffs(project_path: str) -> list[dict]:
-    """List all handoff documents in a project."""
-    handoffs_dir = Path(project_path) / ".claude" / "handoffs"
+def collect_handoffs_dirs(target_path: Path) -> list[Path]:
+    """Resolve which handoff directories should be scanned."""
+    if target_path.name == "handoffs":
+        return [target_path]
 
-    if not handoffs_dir.exists():
+    if (target_path / "handoffs").exists():
+        return [target_path / "handoffs"]
+
+    detected_explore = detect_explore_dir_from_path(target_path)
+    if detected_explore is not None:
+        return [detected_explore / "handoffs"]
+
+    project_root = find_project_root(target_path)
+    explore_root = project_root / ".codex" / "explore"
+    if not explore_root.exists():
         return []
 
+    return sorted(
+        [child / "handoffs" for child in explore_root.iterdir() if child.is_dir() and (child / "handoffs").exists()],
+        key=lambda path: path.parent.name.lower(),
+    )
+
+
+def list_handoffs(target_path: str) -> list[dict]:
+    """List all handoff documents reachable from a target path."""
+    resolved_target = Path(target_path).resolve()
     handoffs = []
-    for filepath in handoffs_dir.glob("*.md"):
-        parsed_date = parse_date_from_filename(filepath.name)
-        handoffs.append({
-            "path": str(filepath),
-            "filename": filepath.name,
-            "title": extract_title(filepath),
-            "status": check_completion_status(filepath),
-            "date": parsed_date,
-            "size": filepath.stat().st_size,
-        })
 
-    # Sort by date, most recent first
+    for handoffs_dir in collect_handoffs_dirs(resolved_target):
+        explore_slug = handoffs_dir.parent.name
+        for filepath in handoffs_dir.glob("*.md"):
+            parsed_date = parse_date_from_filename(filepath.name)
+            handoffs.append({
+                "path": str(filepath),
+                "filename": filepath.name,
+                "title": extract_title(filepath),
+                "status": check_completion_status(filepath),
+                "date": parsed_date,
+                "size": filepath.stat().st_size,
+                "explore": explore_slug,
+                "handoffs_dir": str(handoffs_dir),
+            })
+
     handoffs.sort(key=lambda x: x["date"] or datetime.min, reverse=True)
-
     return handoffs
 
 
@@ -97,21 +123,31 @@ def format_date(dt: datetime | None) -> str:
 
 
 def main():
-    # Get project path
-    project_path = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()
+    parser = argparse.ArgumentParser(
+        description="List handoff documents from one explore workspace or across the project"
+    )
+    parser.add_argument(
+        "path",
+        nargs="?",
+        default=os.getcwd(),
+        help="Project root, explore directory, or handoffs directory"
+    )
+    args = parser.parse_args()
 
-    handoffs = list_handoffs(project_path)
+    target_path = args.path
+    handoffs = list_handoffs(target_path)
 
     if not handoffs:
-        print(f"No handoffs found in {project_path}/.claude/handoffs/")
+        print(f"No handoffs found under .codex/explore/*/handoffs/ from {Path(target_path).resolve()}")
         print("\nTo create a handoff, run: python create_handoff.py [task-slug]")
         return
 
-    print(f"Found {len(handoffs)} handoff(s) in {project_path}/.claude/handoffs/\n")
+    print(f"Found {len(handoffs)} handoff(s) under .codex/explore/*/handoffs/\n")
     print("-" * 80)
 
     for h in handoffs:
         print(f"  Date: {format_date(h['date'])}")
+        print(f"  Explore: {h['explore']}")
         print(f"  Title: {h['title']}")
         print(f"  Status: {h['status']}")
         print(f"  File: {h['filename']}")

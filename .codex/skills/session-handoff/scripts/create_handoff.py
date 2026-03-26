@@ -11,9 +11,9 @@ Creates a new handoff document with auto-detected metadata:
 - Handoff chain linking
 
 Usage:
-    python create_handoff.py [task-slug] [--continues-from <previous-handoff>]
+    python create_handoff.py [task-slug] [--explore-dir <explore-dir>] [--continues-from <previous-handoff>]
     python create_handoff.py "implementing-auth"
-    python create_handoff.py "auth-part-2" --continues-from 2024-01-15-auth.md
+    python create_handoff.py "auth-part-2" --explore-dir .codex/explore/auth-debug --continues-from 2024-01-15-auth.md
     python create_handoff.py  # auto-generates slug from timestamp
 """
 
@@ -24,6 +24,13 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+
+from handoff_paths import (
+    find_project_root,
+    handoffs_dir_for_explore,
+    relative_to_project,
+    resolve_explore_dir,
+)
 
 
 def run_cmd(cmd: list[str], cwd: str = None) -> tuple[bool, str]:
@@ -90,9 +97,8 @@ def get_git_info(project_path: str) -> dict:
     return info
 
 
-def find_previous_handoffs(project_path: str) -> list[dict]:
-    """Find existing handoffs in the project."""
-    handoffs_dir = Path(project_path) / ".claude" / "handoffs"
+def find_previous_handoffs(handoffs_dir: Path) -> list[dict]:
+    """Find existing handoffs in the active explore workspace."""
     if not handoffs_dir.exists():
         return []
 
@@ -131,9 +137,9 @@ def find_previous_handoffs(project_path: str) -> list[dict]:
     return handoffs
 
 
-def get_previous_handoff_info(project_path: str, continues_from: str = None) -> dict:
+def get_previous_handoff_info(handoffs_dir: Path, continues_from: str = None) -> dict:
     """Get information about the previous handoff for chaining."""
-    handoffs = find_previous_handoffs(project_path)
+    handoffs = find_previous_handoffs(handoffs_dir)
 
     if continues_from:
         # Find specific handoff
@@ -161,6 +167,7 @@ def get_previous_handoff_info(project_path: str, continues_from: str = None) -> 
 
 def generate_handoff(
     project_path: str,
+    explore_dir: Path,
     slug: str = None,
     continues_from: str = None
 ) -> str:
@@ -181,8 +188,15 @@ def generate_handoff(
     filename = f"{file_timestamp}-{slug}.md"
 
     # Create handoffs directory
-    handoffs_dir = Path(project_path) / ".claude" / "handoffs"
-    handoffs_dir.mkdir(parents=True, exist_ok=True)
+    handoffs_dir = handoffs_dir_for_explore(explore_dir)
+    try:
+        handoffs_dir.mkdir(parents=True, exist_ok=True)
+    except PermissionError as exc:
+        raise PermissionError(
+            f"Unable to create handoff directory: {handoffs_dir}. "
+            "Use an existing writable explore directory under .codex/explore/ "
+            "or adjust filesystem permissions."
+        ) from exc
 
     filepath = handoffs_dir / filename
 
@@ -190,7 +204,8 @@ def generate_handoff(
     git_info = get_git_info(project_path)
 
     # Get previous handoff info for chaining
-    prev_handoff = get_previous_handoff_info(project_path, continues_from)
+    prev_handoff = get_previous_handoff_info(handoffs_dir, continues_from)
+    explore_line = relative_to_project(explore_dir, project_path)
 
     # Build pre-filled sections
     branch_line = git_info["branch"] if git_info["branch"] else "[not a git repo or detached HEAD]"
@@ -233,6 +248,7 @@ def generate_handoff(
 ## Session Metadata
 - Created: {timestamp}
 - Project: {project_path}
+- Explore: {explore_line}
 - Branch: {branch_line}
 - Session duration: [estimate how long you worked]
 
@@ -353,24 +369,37 @@ def main():
         dest="continues_from",
         help="Filename of previous handoff this continues from"
     )
+    parser.add_argument(
+        "--explore-dir",
+        dest="explore_dir",
+        help="Explore workspace directory, e.g. .codex/explore/desktop-pet-ui-debug-v2"
+    )
 
     args = parser.parse_args()
 
     # Get project path (current working directory)
-    project_path = os.getcwd()
+    project_root = find_project_root(os.getcwd())
+    project_path = str(project_root)
+    explore_dir = resolve_explore_dir(project_root, args.explore_dir, os.getcwd())
+    handoffs_dir = handoffs_dir_for_explore(explore_dir)
 
     # Check for existing handoffs to suggest chaining
     if not args.continues_from:
-        prev_handoffs = find_previous_handoffs(project_path)
+        prev_handoffs = find_previous_handoffs(handoffs_dir)
         if prev_handoffs:
             print(f"Found {len(prev_handoffs)} existing handoff(s).")
             print(f"Most recent: {prev_handoffs[0]['filename']}")
             print(f"Use --continues-from <filename> to link handoffs.\n")
 
     # Generate handoff
-    filepath = generate_handoff(project_path, args.slug, args.continues_from)
+    try:
+        filepath = generate_handoff(project_path, explore_dir, args.slug, args.continues_from)
+    except PermissionError as exc:
+        print(f"Error: {exc}")
+        sys.exit(1)
 
     print(f"Created handoff document: {filepath}")
+    print(f"Explore workspace: {relative_to_project(explore_dir, project_path)}")
     print(f"\nNext steps:")
     print(f"1. Open {filepath}")
     print(f"2. Replace [TODO: ...] placeholders with actual content")

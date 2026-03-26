@@ -11,13 +11,15 @@ Checks:
 
 Usage:
     python validate_handoff.py <handoff-file>
-    python validate_handoff.py .claude/handoffs/2024-01-15-143022-auth.md
+    python validate_handoff.py .codex/explore/auth-debug/handoffs/2024-01-15-143022-auth.md
 """
 
 import os
 import re
 import sys
 from pathlib import Path
+
+from handoff_paths import infer_project_root_from_handoff
 
 # Secret detection patterns
 SECRET_PATTERNS = [
@@ -203,7 +205,11 @@ def validate_handoff(filepath: str) -> dict:
         return {"error": f"File not found: {filepath}"}
 
     content = path.read_text()
-    base_path = path.parent.parent.parent  # Go up from .claude/handoffs/
+    project_match = re.search(r'Project:\s*(.+?)(?:\n|$)', content)
+    if project_match and Path(project_match.group(1).strip()).exists():
+        base_path = Path(project_match.group(1).strip())
+    else:
+        base_path = infer_project_root_from_handoff(path)
 
     # Run checks
     todos_clear, remaining_todos = check_todos(content)
@@ -302,7 +308,7 @@ def print_report(result: dict):
 def main():
     if len(sys.argv) < 2:
         print("Usage: python validate_handoff.py <handoff-file>")
-        print("Example: python validate_handoff.py .claude/handoffs/2024-01-15-auth.md")
+        print("Example: python validate_handoff.py .codex/explore/auth-debug/handoffs/2024-01-15-auth.md")
         sys.exit(1)
 
     filepath = sys.argv[1]

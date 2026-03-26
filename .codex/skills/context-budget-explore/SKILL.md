@@ -102,7 +102,7 @@ allowed-tools:
 按主题使用独立 explore 目录，例如：
 
 ```text
-.codex/explore/desktop-pet-ui-debug/
+.codex/explore/desktop-pet-ui-debug-v2/
 ```
 
 这类目录只记录某个具体问题或功能迭代，例如：
@@ -320,7 +320,7 @@ Checkpoint 输出格式：
 
 1. **生成交接文档**：调用 `session-handoff` skill，生成标准交接文档
    - 交接文档会包含：当前目标、进度、决策、下一步
-   - 存储在 `.claude/handoffs/` 目录
+   - 存储在当前 explore 目录下的 `handoffs/` 子目录，例如 `.codex/explore/desktop-pet-ui-debug-v2/handoffs/`
 
 2. **同时更新持久化文件**：
    - 更新 handoff.md（精简版，快速恢复用）
@@ -418,7 +418,7 @@ Checkpoint 输出格式：
 
 1. 先创建本 skill 的 checkpoint
 2. 更新所有持久化文件
-3. 调用 session-handoff 生成标准交接文档
+3. 调用 session-handoff 生成标准交接文档，写入当前 explore 目录下的 `handoffs/`
 4. 告知用户：交接文档位置 + 下次如何恢复
 
 ## 持久化文件模板
@@ -529,6 +529,20 @@ Checkpoint 输出格式：
 3. 读取 learnings.md 了解历史经验
 4. 从"立即要做的下一步"继续
 ```
+
+### `handoffs/`
+```text
+.codex/explore/<topic>/handoffs/
+  ├─ 2026-03-26-103000-round-1.md
+  ├─ 2026-03-26-154500-round-2.md
+  └─ 2026-03-27-091200-round-3.md
+```
+
+说明：
+
+- `handoff.md` 是当前 explore 的精简摘要入口
+- `handoffs/` 用来存放该 explore 的多次标准交接文档
+- 一个 explore 可以有很多次交接，按时间戳持续追加，不混到别的 explore 里
 
 ## 输出规范
 

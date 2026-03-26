@@ -11,7 +11,7 @@ Analyzes:
 
 Usage:
     python check_staleness.py <handoff-file>
-    python check_staleness.py .claude/handoffs/2024-01-15-143022-auth.md
+    python check_staleness.py .codex/explore/auth-debug/handoffs/2024-01-15-143022-auth.md
 """
 
 import os
@@ -20,6 +20,8 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+
+from handoff_paths import infer_project_root_from_handoff
 
 
 def run_cmd(cmd: list[str], cwd: str = None) -> tuple[bool, str]:
@@ -44,6 +46,7 @@ def parse_handoff_metadata(filepath: str) -> dict:
         "created": None,
         "branch": None,
         "project_path": None,
+        "explore_path": None,
         "modified_files": [],
     }
 
@@ -66,6 +69,11 @@ def parse_handoff_metadata(filepath: str) -> dict:
     match = re.search(r'Project:\s*(.+?)(?:\n|$)', content)
     if match:
         metadata["project_path"] = match.group(1).strip()
+
+    # Parse Explore path
+    match = re.search(r'Explore:\s*(.+?)(?:\n|$)', content)
+    if match:
+        metadata["explore_path"] = match.group(1).strip()
 
     # Parse modified files from table
     table_matches = re.findall(r'\|\s*([a-zA-Z0-9_\-./]+\.[a-zA-Z]+)\s*\|', content)
@@ -232,8 +240,7 @@ def check_staleness(handoff_path: str) -> dict:
     # Determine project path
     project_path = metadata.get("project_path")
     if not project_path or not Path(project_path).exists():
-        # Fallback: assume handoff is in .claude/handoffs/ within project
-        project_path = str(path.parent.parent.parent)
+        project_path = str(infer_project_root_from_handoff(path))
 
     # Check if git repo
     success, _ = run_cmd(["git", "rev-parse", "--git-dir"], cwd=project_path)
@@ -364,7 +371,7 @@ def print_report(result: dict):
 def main():
     if len(sys.argv) < 2:
         print("Usage: python check_staleness.py <handoff-file>")
-        print("Example: python check_staleness.py .claude/handoffs/2024-01-15-auth.md")
+        print("Example: python check_staleness.py .codex/explore/auth-debug/handoffs/2024-01-15-auth.md")
         sys.exit(1)
 
     handoff_path = sys.argv[1]

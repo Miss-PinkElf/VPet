@@ -103,12 +103,12 @@ python scripts/create_handoff.py implementing-user-auth
 
 **Continuation handoff (linked to previous):**
 ```bash
-python scripts/create_handoff.py "auth-part-2" --continues-from 2024-01-15-auth.md
+python scripts/create_handoff.py "auth-part-2" --explore-dir .codex/explore/auth-debug --continues-from 2024-01-15-auth.md
 ```
 
 **Validate before finalizing:**
 ```bash
-python scripts/validate_handoff.py .claude/handoffs/2024-01-15-143022-implementing-auth.md
+python scripts/validate_handoff.py .codex/explore/auth-debug/handoffs/2024-01-15-143022-implementing-auth.md
 ```
 
 ### Resuming from a Handoff
@@ -120,7 +120,7 @@ python scripts/list_handoffs.py
 
 **Check if handoff is current:**
 ```bash
-python scripts/check_staleness.py .claude/handoffs/2024-01-15-143022-implementing-auth.md
+python scripts/check_staleness.py .codex/explore/auth-debug/handoffs/2024-01-15-143022-implementing-auth.md
 ```
 
 **Load and continue work:**
@@ -147,7 +147,7 @@ See [references/handoff-template.md](references/handoff-template.md) for the com
 
 ## Storage Location
 
-Handoffs are stored in: `.claude/handoffs/`
+Handoffs are stored in: `.codex/explore/<explore-slug>/handoffs/`
 
 Naming convention: `YYYY-MM-DD-HHMMSS-[slug].md`
 
