@@ -1,0 +1,23 @@
+{
+  "skill_name": "superspec",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我要改一个现有页面的小交互，需求很明确，只是按钮状态和文案要调整。请按合适流程推进。",
+      "expected_output": "命中轻量路径，至少做一次交互确认，再进入 proposal 或 apply 的推进思路。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "我要做一个新的页面模块，需求还比较模糊，可能有几种实现方案。请帮我推进。",
+      "expected_output": "命中标准路径，先做 Align 或 Brainstorming，再进入 Propose。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "这个页面现在报错了，我不知道根因是什么，你先帮我定位并修。",
+      "expected_output": "被路由到 systematic debugging，而不是直接进入标准实现路径。",
+      "files": []
+    }
+  ]
+}
