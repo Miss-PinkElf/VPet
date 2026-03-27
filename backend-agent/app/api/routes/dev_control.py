@@ -118,19 +118,31 @@ CONTROL_PAGE_HTML = """
           </label>
         </div>
 
+        <div class="grid">
+          <label id="field-bubble-motion" class="hidden">
+            bubble.motion
+            <input id="bubble-motion" type="text" placeholder="例如 idle / touch_head / pinch" />
+          </label>
+
+          <label id="field-graph" class="hidden">
+            graph
+            <input id="graph" type="text" placeholder="例如 think / pinch / 自定义 graph 名" />
+          </label>
+        </div>
+
         <label id="field-emotion" class="hidden">
           emotion
-          <input id="emotion" type="text" placeholder="例如 curious / shy / angry" />
+          <input id="emotion" type="text" placeholder="例如 shy / think / pinch" />
         </label>
 
         <label id="field-motion" class="hidden">
           motion
-          <input id="motion" type="text" placeholder="例如 wave_slow / idle_breath" />
+          <input id="motion" type="text" placeholder="例如 idle / move / touch_head / sleep" />
         </label>
 
         <label id="field-mode" class="hidden">
           mode
-          <input id="mode" type="text" placeholder="例如 quiet_companion / companion" />
+          <input id="mode" type="text" placeholder="例如 normal / thinking" />
         </label>
 
         <label id="field-intent" class="hidden">
@@ -149,6 +161,8 @@ CONTROL_PAGE_HTML = """
       const durationInput = document.getElementById('duration-ms');
       const emotionInput = document.getElementById('emotion');
       const motionInput = document.getElementById('motion');
+      const bubbleMotionInput = document.getElementById('bubble-motion');
+      const graphInput = document.getElementById('graph');
       const priorityInput = document.getElementById('priority');
       const modeInput = document.getElementById('mode');
       const intentInput = document.getElementById('intent');
@@ -157,6 +171,8 @@ CONTROL_PAGE_HTML = """
       const fieldDuration = document.getElementById('field-duration');
       const fieldEmotion = document.getElementById('field-emotion');
       const fieldMotion = document.getElementById('field-motion');
+      const fieldBubbleMotion = document.getElementById('field-bubble-motion');
+      const fieldGraph = document.getElementById('field-graph');
       const fieldPriority = document.getElementById('field-priority');
       const fieldMode = document.getElementById('field-mode');
       const fieldIntent = document.getElementById('field-intent');
@@ -165,8 +181,10 @@ CONTROL_PAGE_HTML = """
         const nextType = eventTypeSelect.value;
         fieldText.classList.toggle('hidden', nextType !== 'bubble.show');
         fieldDuration.classList.toggle('hidden', nextType !== 'bubble.show');
-        fieldEmotion.classList.toggle('hidden', nextType !== 'emotion.set');
+        fieldBubbleMotion.classList.toggle('hidden', nextType !== 'bubble.show');
+        fieldEmotion.classList.toggle('hidden', !(nextType === 'bubble.show' || nextType === 'emotion.set'));
         fieldMotion.classList.toggle('hidden', nextType !== 'motion.play');
+        fieldGraph.classList.toggle('hidden', !(nextType === 'bubble.show' || nextType === 'emotion.set'));
         fieldPriority.classList.toggle('hidden', nextType !== 'motion.play');
         fieldMode.classList.toggle('hidden', nextType !== 'mode.switch');
         fieldIntent.classList.toggle('hidden', nextType !== 'move.intent');
@@ -185,7 +203,9 @@ CONTROL_PAGE_HTML = """
             text: textInput.value,
             duration_ms: Number(durationInput.value),
             emotion: emotionInput.value,
-            motion: motionInput.value,
+            motion: eventTypeSelect.value === 'bubble.show' ? bubbleMotionInput.value : motionInput.value,
+            expression: eventTypeSelect.value === 'bubble.show' ? emotionInput.value : '',
+            graph: graphInput.value,
             priority: Number(priorityInput.value),
             mode: modeInput.value,
             intent: intentInput.value,

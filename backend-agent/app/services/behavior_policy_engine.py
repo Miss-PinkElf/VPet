@@ -26,13 +26,20 @@ class BehaviorPolicyEngine:
             return BubbleShowEvent(
                 text=request.text.strip(),
                 duration_ms=request.duration_ms,
+                motion=(request.motion.strip() if request.motion and request.motion.strip() else None),
+                expression=(request.expression.strip() if request.expression and request.expression.strip() else None),
+                graph=(request.graph.strip() if request.graph and request.graph.strip() else None),
                 source=source,
             )
 
         if request.type == 'emotion.set':
             if not request.emotion or not request.emotion.strip():
                 raise HTTPException(status_code=422, detail='emotion.set 需要提供 emotion。')
-            return EmotionSetEvent(emotion=request.emotion.strip(), source=source)
+            return EmotionSetEvent(
+                emotion=request.emotion.strip(),
+                graph=(request.graph.strip() if request.graph and request.graph.strip() else None),
+                source=source,
+            )
 
         if request.type == 'motion.play':
             if not request.motion or not request.motion.strip():

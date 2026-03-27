@@ -582,6 +582,8 @@ namespace VPet_Simulator.Windows
                 {
                     Windows[0].Close();
                 }
+                agentBridgePoller?.Dispose();
+                agentBridgePoller = null;
                 Main?.Dispose();
                 AutoSaveTimer?.Stop();
                 MusicTimer?.Stop();

@@ -1,7 +1,7 @@
 import asyncio
 
-from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, Response
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from ...services.app_services import AppServices
 from ..dependencies import get_services
@@ -31,3 +31,12 @@ async def stream_events(services: AppServices = Depends(get_services)) -> Stream
             'Connection': 'keep-alive',
         },
     )
+
+
+@router.get('/vpet/events/next')
+async def poll_next_event(services: AppServices = Depends(get_services)) -> Response:
+    event = await services.event_bus.poll_next()
+    if event is None:
+        return Response(status_code=204)
+
+    return JSONResponse(content=event.model_dump())
