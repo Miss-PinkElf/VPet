@@ -1,20 +1,11 @@
 ---
 name: context-budget-explore
 description: |
-  探索工作流管理器，用于长期探索、质检工作流、agent 闭环、迭代优化等场景，解决上下文过长导致的费用高、速度慢问题。
-  外层管理 workflow/todolist + 经验沉淀，内层通过 superspec 走开发流程，达到上下文阈值时自动触发 session-handoff 生成交接文档，支持跨对话续接。
-  当用户要做以下事情时，积极触发本 skill：
-  - 探索性工作（质检工作流、agent 闭环、迭代优化、方案对比）
-  - 维护 todolist/workflow、记录进度、沉淀经验
-  - 提到"上下文太长"、"跨对话继续"、"记录进度"、"太慢了"、"太贵了"
-  - 长时间迭代优化、反复调试某个功能
-  - 需要跨多轮对话持续推进的任务
-  - 在本仓库中，用户提到“毕设”“毕业设计”“阶段推进”“路线图”“记录过程”“答辩”“继续桌宠项目”“继续上次桌宠”“写论文材料”“整理开发过程”时，必须优先触发
-  - 在本仓库中，用户提到“桌宠”“前后端闭环”“简单对话”“记忆系统”“OpenSpec 任务状态”“阶段完成度”时，如果目标是持续推进而非单次问答，也应触发
-  即使用户没有明确说"用 context-budget-explore"，只要是探索性、迭代性的长任务，也应该主动使用。
+  探索、需求、实施一体化的上下文预算工作流管理器。适用于长期探索、需求澄清、方案对比、迭代开发、质检闭环、跨对话续接、上下文过长、需要记录过程与决策的任务。优先在 Claude Code 中使用，但也可作为通用 skill：把阶段、任务、决策、经验、checkpoint、handoff 全部沉淀到仓库根目录 `.explore/`，让 AI 在长任务中始终有记录、有恢复点、有清晰过程。
+  只要用户提到“探索一下”“先梳理需求”“边做边记录”“跨对话继续”“保存进度”“上下文太长”“这个任务会做很久”“想把过程沉淀下来”，都应该主动触发本 skill。
 author: Claude Code
-version: 2.1.0
-date: 2026-03-24
+version: 3.0.0
+date: 2026-03-27
 allowed-tools:
   - TaskCreate
   - TaskGet
@@ -27,578 +18,298 @@ allowed-tools:
   - Grep
   - Bash
   - AskUserQuestion
-  - Skill
   - Agent
 ---
 
-# 探索工作流管理器
+# 上下文预算探索工作流
 
-## 解决什么问题
+## 核心定位
 
-探索性工作（质检工作流、agent 闭环、迭代优化）很容易陷入以下困境：
+这个 skill 是一个位于 superspec 外层的 mission/workflow 管理器。
 
-- 上下文越来越长 → 速度变慢、费用增加
-- 多个并行线索堆在一个对话里 → 混乱
-- 做过的决策没记下来 → 反复讨论同一个问题
-- 优化经验没沉淀 → 下次还踩同样的坑
-- 对话中断后 → 无法快速恢复
+它负责：
 
-本 skill 的核心理念：**活跃上下文保持精简，持久化状态保持丰富**。
+1. 管理任务全生命周期，而不是只盯当前一轮对话
+2. 把需求、探索、实施、验证、交接过程沉淀到仓库根目录 `.explore/`
+3. 在需要时调用内置 `skills/superspec/SKILL.md` 处理具体子任务
+4. 在上下文过长、阶段结束或准备暂停时调用内置 `skills/session-handoff/SKILL.md` 生成交接
 
-## 架构：三层协作
+一句话：**superspec 负责把子任务做对，本 skill 负责让整件事有过程、有记录、有恢复点。**
 
-```
-┌──────────────────────────────────────────────┐
-│  context-budget-explore（外层管理器）           │
-│  职责：workflow 管理 / 经验沉淀 / 上下文预算     │
-│                                              │
-│  ┌────────────────────────────────────┐      │
-│  │  superspec（内层流程引擎）            │      │
-│  │  职责：具体任务走 propose → apply     │      │
-│  │  每完成一个迭代 → 自动回报外层         │      │
-│  └────────────────────────────────────┘      │
-│                                              │
-│  ┌────────────────────────────────────┐      │
-│  │  session-handoff（续接引擎）          │      │
-│  │  职责：上下文过长时生成交接文档         │      │
-│  │  下次对话通过 handoff 快速恢复         │      │
-│  └────────────────────────────────────┘      │
-└──────────────────────────────────────────────┘
-```
+## 适用范围
 
-- **外层**负责全局进度、经验沉淀、上下文预算
-- **内层 superspec**负责每个具体开发任务的流程（classify → align → propose → apply → verify）
-- **session-handoff**在上下文接近极限时自动生成交接文档
+优先用于：
 
-## 项目特化：agent-desktop-pet 毕设版
+- 需求还不清楚，需要先探索、梳理、对齐
+- 要做方案比较、代码调查、路径选择
+- 一个任务会持续多轮，希望保留 workflow / todo / 决策 / 经验
+- 既要做需求，又要做实现，还要保存完整过程
+- 需要跨对话继续推进
+- 用户明确提到“上下文太长”“太慢了”“先保存一下”“下次继续”
 
-在当前仓库 `/Users/mobius/Documents/111AAA-code/agent-desktop-pet` 中，本 skill 不是抽象通用工作流，而是**桌宠毕业设计推进管理器**。触发后默认这样理解用户意图：
+如果只是一次性的小修小改，且没有持续记录需求，可以不触发本 skill。
 
-- 用户通常不是只想解决一个零散问题，而是想继续推进整份毕业设计
-- 记录的目标不仅是续接开发，还包括后续写论文、写周报、准备答辩
-- 需要把“全局阶段推进”和“局部技术调试”分层管理，避免所有记录都堆在一个目录
+## 环境偏好
 
-### 本项目中的默认记录分层
+### Claude Code 优先
 
-#### 1. 全局主线记录
+在 Claude Code 中，优先使用：
 
-优先使用：
+- `TaskCreate / TaskUpdate / TaskList` 管执行层任务
+- `Read / Write / Edit / Glob / Grep` 管持久化文件
+- `Agent` 做并行探索或拆分执行
+- `Bash` 创建目录与运行验证命令
 
-```text
-.codex/explore/desktop-pet-graduation-roadmap/
-```
+### 通用环境降级
 
-这个目录负责：
+如果缺少 TaskList、Agent 或 Bash，也仍然可以使用：
 
-- 毕设当前阶段
-- 阶段目标和边界
-- 当前主线任务
-- 决策沉淀
-- 经验沉淀
-- 续接 handoff
+- 用 `session-tasks.md` 代替 TaskList
+- 用 `.explore/` 下的状态文件承接上下文
+- 无法自动执行时，写明确下一步与恢复指引
 
-#### 2. 专项问题记录
+原则：**工具能力不同，但工作流与落盘结构保持一致。**
 
-按主题使用独立 explore 目录，例如：
+## 默认工作目录
 
-```text
-.codex/explore/desktop-pet-ui-debug-v2/
+默认使用仓库根目录：
+
+```txt
+.explore/
 ```
 
-这类目录只记录某个具体问题或功能迭代，例如：
+每个任务对应一个独立 mission：
 
-- 边框联动缩放
-- 后端简单对话联调
-- 记忆系统调研
-
-#### 3. 功能实现真相源
-
-当任务进入具体实现时，默认与 OpenSpec 联动，真相源是：
-
-```text
-openspec/changes/desktop-pet-companion-roadmap/
+```txt
+.explore/<mission-slug>/
 ```
 
-尤其是：
+开始任务时：
 
-- `proposal.md`
-- `design.md`
-- `tasks.md`
+1. 如果 `.explore/` 不存在，先创建
+2. 为当前任务生成简短稳定的 `mission-slug`
+3. 初始化 mission 目录及基础文件
+4. 如果用户是在续接旧任务，优先读取已有 mission，而不是创建新目录
 
-#### 4. 产品和论文需求真相源
+目录结构与模板说明，读取：
 
-默认优先读取：
+- `references/workspace-and-templates.md`
 
-- `zzz-doc/zzz-prompt-debug/origin/原始PRD.md`
-- `zzz-doc/zzz-prompt-debug/origin/1.md`
-- `zzz-doc/zzz-prompt-debug/plan/桌宠项目详细PRD.md`
-- `zzz-doc/桌宠毕设过程记录指南.md`
-- `references/agent-desktop-pet-workflows.md`
+## 真相源
 
-如果用户是在问“我现在需要干什么”“新需求怎么推进”“修 bug 怎么走”“什么时候做 checkpoint / handoff”，优先读取：
+建立 mission 工作区后，以下内容优先级高于聊天历史：
 
-- `references/agent-desktop-pet-workflows.md`
-
-### 本项目中的稳定触发规则
-
-在本仓库里，只要满足以下任一情况，就应默认触发本 skill，而不是把它当成一次性聊天：
-
-- 用户说“继续毕设”“继续桌宠项目”“继续上次”
-- 用户说“帮我记录一下过程”“阶段推进一下”“整理当前状态”
-- 用户说“我要开始下一阶段”“更新任务状态”“同步 OpenSpec”
-- 用户说“后面还会继续做”“这个要长期推进”“把这轮写进文档”
-- 用户提到“论文怎么写”“答辩怎么讲”“想留开发过程记录”
-
-### 本项目中的默认启动动作
-
-在当前仓库触发后，优先按下面顺序工作：
-
-1. 读取全局 roadmap：
-   - `.codex/explore/desktop-pet-graduation-roadmap/handoff.md`
-   - `.codex/explore/desktop-pet-graduation-roadmap/state.md`
-   - `.codex/explore/desktop-pet-graduation-roadmap/learnings.md`
-2. 如任务是某个专项问题，再读取对应专项目录
-3. 如任务涉及实现阶段，读取 OpenSpec 的 `proposal.md / design.md / tasks.md`
-4. 判断这轮是：
-   - 只更新记录
-   - 记录 + 调整任务状态
-   - 记录 + 进入 superspec 做实现
-
-### 本项目中的默认阶段划分
-
-如果用户没有另行指定，默认将毕设推进理解为以下主线：
-
-1. 前端展示与交互稳定
-2. 前后端简单对话闭环
-3. 基础记忆与配置能力
-4. 轻量上下文感知
-5. 演示脚本、论文材料与答辩收口
-
-### 本项目中的记录要求
-
-每轮有实质推进时，至少回写：
-
-- 全局 `state.md`
-- 全局 `decision-log.md`
-- 全局 `learnings.md`
-
-如果这轮是专项调试，再补对应专项目录的：
-
+- `workflow.md`
 - `state.md`
-- `handoff.md`
-- 必要时 `workflow.md`
+- `decision-log.md`
+- `learnings.md`
+- `checkpoints.md`
+- `spec/proposal.md`
+- `spec/design.md`
+- `spec/tasks.md`
+- `handoffs/index.md`
+- 最新 handoff 文件
 
-如果这轮已经影响阶段完成度，还要同步：
+聊天记录只用于辅助理解，**不是最终事实来源**。
 
-- `openspec/changes/desktop-pet-companion-roadmap/tasks.md`
+## 路由规则
 
-关键要求：
+### 路由一：纯探索 / 需求梳理 / 方案比较
 
-- 记录不只写“做了什么”，还要写“为什么这样做、放弃了什么、下一步是什么”
-- 用词要适合后续提炼为论文材料
-- 所有新增记录保持简体中文
+读取：
 
-## 四层记忆模型
+- `skills/superspec/SKILL.md`
 
-1. **执行层（TaskList）** — 当前会话的 todolist，跟踪进行中的任务
-2. **状态层（持久化文件）** — workflow.md / state.md 等，跨 checkpoint 存活
-3. **决策层（经验日志）** — decision-log.md / learnings.md，可复用的洞察
-4. **回忆层（跨对话记忆）** — handoff.md + session-handoff 交接文档
+走它的探索/对齐模式，但外层仍要更新：
 
-## 工作流程
+- `workflow.md`
+- `state.md`
+- `decision-log.md`（必要时）
+- `learnings.md`
 
-### 阶段一：启动（Mission Init）
+### 路由二：方向已确定，需要产出 proposal / design / tasks
 
-收到探索性任务时：
+读取：
 
-1. **定义任务边界**
-   - 目标是什么
-   - 范围边界（做什么/不做什么）
-   - 成功标准
-   - 预估迭代次数（粗略即可）
+- `skills/superspec/SKILL.md`
 
-2. **创建执行脚手架**
-   - 在 TaskList 创建任务列表（保持精简，5-8 个有意义的任务）
-   - 确定工作目录，创建持久化文件
+把产物写到当前 mission 的 `spec/` 目录。
 
-3. **初始化持久化文件**
-   - 在用户指定的工作目录下创建文件（默认 `.codex/explore/`）
-   - 如果是续接任务，先读取已有的 handoff.md 恢复状态
+### 路由三：已批准，进入实施与验证
 
-### 当前仓库的 Mission Init 默认模板
+读取：
 
-如果用户没有指定目录，在本仓库默认这样初始化：
+- `skills/superspec/SKILL.md`
 
-1. 全局主线：
-   - `.codex/explore/desktop-pet-graduation-roadmap/`
-2. 当前专项：
-   - 按主题创建 `.codex/explore/desktop-pet-<topic>/`
-3. 真相源同步：
-   - `openspec/changes/desktop-pet-companion-roadmap/tasks.md`
-4. 论文/需求参考：
-   - `zzz-doc/zzz-prompt-debug/plan/桌宠项目详细PRD.md`
+按 `spec/tasks.md` 推进实现与验证。
 
-### 阶段二：迭代执行（Bounded Loop）
+### 路由四：需要 handoff / resume
 
-每个迭代遵循这个闭环：
+读取：
 
-```
-┌→ 选择子目标（从 TaskList 取下一个）
-│
-├→ 使用 superspec 执行
-│   - 如果是开发任务 → superspec 的 propose → apply → verify
-│   - 如果是探索任务 → 调研 → 总结 → 记录
-│
-├→ 迭代回报（每完成一轮自动执行）
-│   - 更新 state.md（当前状态）
-│   - 追加 decision-log.md（本轮决策）
-│   - 追加 learnings.md（本轮经验）
-│   - 更新 TaskList（标记完成，发现新任务则添加）
-│
-├→ 上下文预算检查
-│   - 如果对话已经很长 → 触发 checkpoint
-│   - 如果接近极限 → 触发 session-handoff
-│
-└→ 进入下一个迭代
-```
+- `skills/session-handoff/SKILL.md`
 
-### 阶段三：Checkpoint（阶段性保存）
+处理当前 mission 的多次 handoff。
 
-以下时机触发 checkpoint：
+## 标准流程
 
-- 一个子任务完成
-- 切换到新的子任务前
-- 做了重要决策后
-- 感觉上下文开始变长变重时
-- 用户主动要求
+## 阶段 0：Classify
 
-Checkpoint 输出格式：
+先判断当前请求属于哪类：
 
-```markdown
-## Checkpoint [编号] - [日期时间]
-### 当前阶段
-...
+1. 只是探索，不做实现
+2. 需要先对齐，再产出 spec
+3. 已可实施，需要开发与验证
+4. 需要 checkpoint / handoff / resume
 
-### 本轮完成了什么
-- ...
+然后明确告诉用户当前 route。
 
-### 本轮做的决策
-- 决策：...
-- 原因：...
+## 阶段 1：Mission Init
 
-### 沉淀的经验
-- ...
+启动一个 mission 时，必须完成：
 
-### 待解决的问题
-- ...
+1. 定义任务目标
+2. 定义范围内 / 范围外
+3. 定义成功标准
+4. 给出粗粒度阶段划分
+5. 初始化 `.explore/<mission>/` 目录与基础文件
+6. 创建执行层任务：
+   - Claude Code 用 TaskList
+   - 通用环境用 `session-tasks.md`
 
-### 下一步
-- ...
+任务列表保持精简，通常 5-8 项。
 
-### 可以从活跃上下文中移除的内容
-- ...（这一项必填，明确标出哪些信息不再需要留在对话中）
+## 阶段 2：Bounded Loop
+
+每轮只推进一个清晰子目标：
+
+```txt
+选择下一个子目标
+-> 读取 state / 最新 checkpoint / 最新 handoff / learnings
+-> 选择内层路由（探索、提案、实施、验证）
+-> 读取 skills/superspec/SKILL.md 执行
+-> 外层回写 workflow / state / decision-log / learnings
+-> 判断是否要 checkpoint 或 handoff
+-> 进入下一轮
 ```
 
-### 阶段四：上下文预算管理
+要求：
 
-**预算信号判断**（不需要精确计数，通过以下信号判断）：
+- 一次只推进一个主子目标
+- 每轮结束都要留下可恢复记录
+- 不允许只改代码、不更新状态文件
 
-- 对话轮次已经超过 15-20 轮 → 考虑 checkpoint
-- 开始反复解释之前已经讨论过的内容 → 需要 checkpoint
-- 单次回复开始变慢 → 上下文可能过长
-- 用户说"太慢了"/"太贵了" → 立即触发
+## 阶段 3：Checkpoint
 
-**预算控制手段**：
+以下时机必须考虑 checkpoint：
 
-1. **轻度压缩**：在回复中只引用结论，不重复推导过程
-2. **中度压缩**：创建 checkpoint，明确标出可以遗忘的内容
-3. **重度压缩**：触发 session-handoff，生成完整交接文档，建议用户开新对话
+- 完成一个子任务后
+- 切换到新子任务前
+- 做出重要决策后
+- 用户要求记录进度 / 保存状态
+- 开始重复解释旧信息时
+- 明显感觉上下文变重时
 
-### 阶段五：跨对话续接
+checkpoint 统一追加到：
 
-当需要跨对话时：
+- `checkpoints.md`
 
-1. **生成交接文档**：调用 `session-handoff` skill，生成标准交接文档
-   - 交接文档会包含：当前目标、进度、决策、下一步
-   - 存储在当前 explore 目录下的 `handoffs/` 子目录，例如 `.codex/explore/desktop-pet-ui-debug-v2/handoffs/`
-
-2. **同时更新持久化文件**：
-   - 更新 handoff.md（精简版，快速恢复用）
-   - 更新 state.md（完整状态）
-   - 确保 learnings.md 是最新的
-
-3. **恢复时**：
-   - 用户在新对话中说"继续上次的探索"或类似的话
-   - 读取最新的 handoff.md 和 state.md
-   - 恢复 TaskList
-   - 从上次的 next step 继续
-
-## 自动经验沉淀机制
-
-这是本 skill 的核心差异化能力。每次迭代完成后，自动提取并记录：
-
-### 记录什么
-
-```markdown
-# learnings.md 追加格式
-
-## [日期] 第 N 轮迭代经验
-
-### 有效的做法
-- ...（什么方法奏效了，为什么）
-
-### 无效的做法
-- ...（什么方法失败了，为什么）
-
-### 降低成本/延迟的技巧
-- ...
-
-### 导致上下文膨胀的行为
-- ...
-
-### 可复用的策略
-- ...
-
-### 下次要避免的坑
-- ...
-```
-
-### 何时沉淀
-
-- 每完成一个 superspec 的 apply → verify 周期
-- 每次 debug 成功解决问题后
-- 每次方案对比做出选择后
-- 每次 checkpoint 时
-
-### 经验复用
-
-- 每次开始新迭代前，快速浏览 learnings.md，避免重复踩坑
-- 如果某个经验被反复引用（3次以上），建议用户考虑将其固化为规范或 skill
-
-## 与 superspec 的集成
-
-当内层任务需要走开发流程时：
-
-1. **外层** 选定子目标，创建任务上下文
-2. **调用 superspec**：`/superspec` 走标准流程
-   - classify → align → propose → apply → verify
-3. **superspec 完成后**，回到外层：
-   - 外层收集本轮产出
-   - 更新 state.md
-   - 追加 learnings.md
-   - 检查上下文预算
-   - 决定下一个子目标
-
-关键点：superspec 负责"怎么做好这个具体任务"，外层负责"做哪个任务、进度如何、学到了什么"。
-
-在本项目里，推荐的职责分工是：
-
-- `context-budget-explore`：
-  - 管毕业设计阶段推进
-  - 管记录体系
-  - 管跨对话续接
-  - 管任务状态回写
-- `superspec`：
-  - 管“这一轮具体功能怎么落地”
-  - 管 proposal / design / tasks
-  - 管 apply / verify / review
-
-如果用户是在问流程而不是问实现细节，直接按 `references/agent-desktop-pet-workflows.md` 输出具体步骤，不要只停留在抽象原则。
-
-## 与 session-handoff 的集成
-
-触发条件（满足任一）：
-
-- 对话明显过长，回复开始变慢
-- 用户说"先到这"、"下次继续"、"保存进度"
-- 一个大阶段完成，适合切换对话
-- 外层主动判断需要切换
-
-触发时：
-
-1. 先创建本 skill 的 checkpoint
-2. 更新所有持久化文件
-3. 调用 session-handoff 生成标准交接文档，写入当前 explore 目录下的 `handoffs/`
-4. 告知用户：交接文档位置 + 下次如何恢复
-
-## 持久化文件模板
-
-### `workflow.md`
-```markdown
-# 探索工作流
-
-## 任务目标
-...
-
-## 范围边界
-- 范围内：...
-- 范围外：...
-
-## 成功标准
-- ...
-
-## 阶段规划
-1. ...
-2. ...
-3. ...
-
-## 当前阶段
-阶段 X：...
-
-## 退出条件
-- ...
-```
-
-### `state.md`
-```markdown
-# 当前状态
-
-## 当前阶段
-...
-
-## 已确认的事实
-- ...
-
-## 工作假设
-- ...
-
-## 待解决的问题
-- ...
-
-## 下一步
-- ...
-
-## 最小活跃上下文摘要
-（用最少的文字描述当前需要记住的核心信息）
-...
-```
-
-### `decision-log.md`
-```markdown
-# 决策日志
-
-## [日期] 决策：...
-- **背景**：...
-- **选择**：...
-- **原因**：...
-- **放弃的方案**：...
-- **影响**：...
-```
-
-### `learnings.md`
-```markdown
-# 经验沉淀
-
-## [日期] 第 N 轮迭代
-
-### 有效的做法
-- ...
-
-### 无效的做法
-- ...
-
-### 可复用的策略
-- ...
-
-### 要避免的坑
-- ...
-```
-
-### `handoff.md`
-```markdown
-# 交接文档
-
-## 当前目标
-...
-
-## 当前进度
-...
-
-## 关键文件/产物
-- ...
-
-## 已做的决策（摘要）
-- ...
-
-## 立即要做的下一步
-- ...
-
-## 恢复指引
-1. 读取本文件了解上下文
-2. 读取 state.md 了解详细状态
-3. 读取 learnings.md 了解历史经验
-4. 从"立即要做的下一步"继续
-```
-
-### `handoffs/`
-```text
-.codex/explore/<topic>/handoffs/
-  ├─ 2026-03-26-103000-round-1.md
-  ├─ 2026-03-26-154500-round-2.md
-  └─ 2026-03-27-091200-round-3.md
-```
-
-说明：
-
-- `handoff.md` 是当前 explore 的精简摘要入口
-- `handoffs/` 用来存放该 explore 的多次标准交接文档
-- 一个 explore 可以有很多次交接，按时间戳持续追加，不混到别的 explore 里
-
-## 输出规范
-
-日常输出保持精简，包含：
+每个 checkpoint 至少包含：
 
 - 当前阶段
-- 活跃任务
-- 是否需要 checkpoint
-- 哪个持久化文件需要更新
-- 下一步建议
+- 本轮完成内容
+- 本轮决策与原因
+- 本轮沉淀的经验
+- 待解决问题
+- 下一步
+- 可从活跃上下文中移除的内容
 
-不要在没有必要时输出大段总结。只在 checkpoint 时输出完整的阶段性报告。
+## 阶段 4：上下文预算控制
 
-## 验证标准
+出现以下信号时，应压缩上下文：
 
-本 skill 运作良好的标志：
+- 对话轮次明显偏长
+- 开始反复复述已确定结论
+- 回复速度变慢
+- 用户说“太慢了 / 太贵了 / 保存一下 / 下次继续”
+- 一个阶段已经结束，适合切换
 
-- 对话不再重复解释旧的结论
-- 从 handoff.md 或 state.md 可以快速恢复进度
-- 决策可以从 decision-log.md 快速查到，不需要翻聊天记录
-- 下一步行动始终明确
-- 用户可以安全地暂停，下次以最小成本继续
-- 每次迭代的经验都有记录，不会重复犯错
+处理优先级：
 
-## 示例场景
+1. 轻度：回复只保留结论，不复述推导
+2. 中度：补写 checkpoint，并明确哪些内容可遗忘
+3. 重度：创建 handoff，建议下次从 handoff 恢复
 
-### 场景一：质检工作流迭代优化
+## 阶段 5：Handoff / Resume
 
-用户说：
-> 我们要做一个质检闭环，会一直迭代优化，顺便把经验沉淀下来。
+### 创建 handoff
 
-响应：
-1. 创建 TaskList：[定义质检规则] → [实现检测逻辑] → [测试验证] → [优化调整] → [沉淀经验]
-2. 初始化 workflow.md、state.md、learnings.md
-3. 第一个任务用 superspec 走流程
-4. 每完成一轮：更新 state + 追加 learnings
-5. 上下文变长时：checkpoint → 必要时 session-handoff
+当任务要暂停、阶段结束、上下文过重时：
 
-### 场景二：跨对话继续
+1. 读取 `skills/session-handoff/SKILL.md`
+2. 在 `handoffs/` 写入新的时间戳 handoff 文件
+3. 更新 `handoffs/index.md`
+4. 同步更新 `state.md` 的当前状态、下一步、最新 handoff
 
-用户说：
-> 继续上次的质检优化工作。
+### 恢复任务
 
-响应：
-1. 读取 `.codex/explore/handoff.md`
-2. 读取 `state.md` 恢复详细状态
-3. 读取 `learnings.md` 回顾历史经验
-4. 恢复 TaskList
-5. 从 handoff 中的"下一步"继续
+当用户说“继续上次的探索/需求/开发”时：
 
-## 注意事项
+1. 找到对应 mission
+2. 读取 `state.md`
+3. 读取 `handoffs/index.md`
+4. 读取最新 handoff，必要时补读上一份
+5. 验证 handoff 提到的文件和当前仓库状态是否仍成立
+6. 从最新 handoff 的下一步继续
 
-- 持久化文件优先更新已有文件，不要不断创建新文件
-- checkpoint 要精简，不是完整的会议纪要
-- learnings.md 记录的是可复用的经验，不是事件日志
-- 如果某个经验已经稳定且被反复验证，考虑写入项目的 CLAUDE.md 或提取为独立 skill
-- 所有文档使用中文
-- 在本项目中，优先维持“全局 roadmap + 专项 explore + OpenSpec 真相源”的三层结构
-- 在本项目中，如果用户提到“毕设”“阶段推进”“记录过程”“继续桌宠”，默认应触发本 skill
+## 记录规则
+
+- `workflow.md`：目标、范围、阶段、退出条件
+- `state.md`：当前阶段、已确认事实、待解问题、下一步、最小活跃上下文
+- `decision-log.md`：记会影响后续判断的决策
+- `learnings.md`：只记可复用经验，不写流水账
+- `checkpoints.md`：按阶段追加 checkpoint
+- `spec/`：记录 proposal / design / tasks
+- `handoffs/`：允许一个 mission 下有多次 handoff
+
+## 硬性规则
+
+1. 默认工作区就是仓库根目录 `.explore/`
+2. 一个 mission 可以有多次 handoff，必须放在该 mission 的 `handoffs/` 目录
+3. 主 skill 不依赖外部 superspec 或外部 session-handoff，只读取当前 skill 目录内子 skills
+4. 日常输出保持短，不要每轮都写大总结
+5. 已存在持久化文件时优先更新，而不是不断新建同类文件
+6. 如果记录与当前仓库事实冲突，以当前事实为准，并回写修正
+7. 内层执行完成后，必须回到外层更新记录，再进入下一轮
+
+## 建议输出格式
+
+平时只输出：
+
+- 当前阶段
+- 当前活跃任务
+- 是否需要 checkpoint / handoff
+- 刚更新了哪些文件
+- 下一步
+
+只有在 checkpoint 或 handoff 时，才输出完整阶段报告。
+
+## 进阶读取顺序
+
+启动或恢复 mission 时：
+
+1. `references/workspace-and-templates.md`
+2. 当前 mission 的 `state.md`
+3. 当前 mission 的 `workflow.md`
+4. 当前 mission 的 `learnings.md`
+5. 当前 mission 的 `handoffs/index.md`（如存在）
+6. `skills/superspec/SKILL.md` 或 `skills/session-handoff/SKILL.md`
+
+## 运作良好的标志
+
+- 需求、探索、实施都走同一个 mission 工作区
+- 即使跨对话，AI 也能快速恢复，不依赖翻聊天记录
+- 决策和经验可以从文件中快速查到
+- 一个 mission 可以积累多份 handoff，而不是只保留一份摘要
+- 即使换环境，仍可以通过 `.explore/` 目录继续工作
+- 整个过程像“有状态的 superspec 外层管理器”，而不是一次性聊天
