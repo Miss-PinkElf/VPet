@@ -11,6 +11,8 @@ namespace VPet_Simulator.Windows.AgentBridge
 {
     internal sealed class AgentBridgePoller : IDisposable
     {
+        private const int DefaultBubbleMotionLeadMilliseconds = 420;
+
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
             PropertyNameCaseInsensitive = true
@@ -131,40 +133,68 @@ namespace VPet_Simulator.Windows.AgentBridge
                 return;
             }
 
-            await mainWindow.Dispatcher.InvokeAsync(() =>
+            switch (bridgeEvent.Type.Trim().ToLowerInvariant())
             {
-                switch (bridgeEvent.Type.Trim().ToLowerInvariant())
-                {
-                    case "bubble.show":
-                        ShowBubble(bridgeEvent);
-                        break;
-                    case "emotion.set":
-                        ApplyExpressionEvent(bridgeEvent);
-                        break;
-                    case "motion.play":
-                        PlayMotion(bridgeEvent);
-                        break;
-                    case "mode.switch":
-                        SwitchMode(bridgeEvent);
-                        break;
-                }
-            }, DispatcherPriority.Normal, cancellationToken);
+                case "bubble.show":
+                    await ShowBubbleAsync(bridgeEvent, cancellationToken);
+                    break;
+                case "emotion.set":
+                    await mainWindow.Dispatcher.InvokeAsync(() => ApplyExpressionEvent(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
+                    break;
+                case "motion.play":
+                    await mainWindow.Dispatcher.InvokeAsync(() => PlayMotion(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
+                    break;
+                case "mode.switch":
+                    await mainWindow.Dispatcher.InvokeAsync(() => SwitchMode(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
+                    break;
+            }
         }
 
-        private void ShowBubble(AgentBridgeEvent bridgeEvent)
+        private async Task ShowBubbleAsync(AgentBridgeEvent bridgeEvent, CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(bridgeEvent.Text) || mainWindow.Main == null)
             {
                 return;
             }
 
-            if (!string.IsNullOrWhiteSpace(bridgeEvent.Motion))
+            var graphName = ResolveGraphName(bridgeEvent);
+
+            if (TryResolveNativeBubbleMotionGraph(bridgeEvent.Motion, out var nativeMotionGraph))
             {
-                PlayMotion(bridgeEvent);
+                await mainWindow.Dispatcher.InvokeAsync(() =>
+                {
+                    if (mainWindow.Main != null)
+                    {
+                        // Native-style choreography: let Say(graph) drive the motion + bubble
+                        // inside the same display state machine instead of hard-splicing two
+                        // separate high-level commands.
+                        mainWindow.Main.DisplayStopForce(() => mainWindow.Main.Say(bridgeEvent.Text, nativeMotionGraph, force: true));
+                    }
+                }, DispatcherPriority.Normal, cancellationToken);
+                return;
             }
 
-            var graphName = ResolveGraphName(bridgeEvent);
-            mainWindow.Main.Say(bridgeEvent.Text, graphName, force: true);
+            if (!string.IsNullOrWhiteSpace(bridgeEvent.Motion))
+            {
+                await mainWindow.Dispatcher.InvokeAsync(() => PlayMotion(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
+
+                try
+                {
+                    await Task.Delay(GetBubbleMotionLeadMilliseconds(bridgeEvent.Motion), cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+            }
+
+            await mainWindow.Dispatcher.InvokeAsync(() =>
+            {
+                if (mainWindow.Main != null)
+                {
+                    mainWindow.Main.Say(bridgeEvent.Text, graphName, force: true);
+                }
+            }, DispatcherPriority.Normal, cancellationToken);
         }
 
         private void PlayMotion(AgentBridgeEvent bridgeEvent)
@@ -291,6 +321,32 @@ namespace VPet_Simulator.Windows.AgentBridge
         private bool HasGraph(string graphName, Core.GraphInfo.AnimatType animatType)
         {
             return (mainWindow.Core?.Graph?.FindGraphs(graphName, animatType, mainWindow.Core.Save.Mode)?.Count ?? 0) > 0;
+        }
+
+        private bool TryResolveNativeBubbleMotionGraph(string motionName, out string graphName)
+        {
+            graphName = motionName?.Trim().ToLowerInvariant() switch
+            {
+                "touch_head" => mainWindow.Core?.Graph?.FindName(Core.GraphInfo.GraphType.Touch_Head),
+                "touch_body" => mainWindow.Core?.Graph?.FindName(Core.GraphInfo.GraphType.Touch_Body),
+                "pinch" => "pinch",
+                "thinking" => "think",
+                _ => null
+            };
+
+            return !string.IsNullOrWhiteSpace(graphName) && HasGraph(graphName, Core.GraphInfo.AnimatType.A_Start);
+        }
+
+        private static int GetBubbleMotionLeadMilliseconds(string motionName)
+        {
+            return motionName?.Trim().ToLowerInvariant() switch
+            {
+                "touch_head" => 480,
+                "touch_body" => 480,
+                "pinch" => 520,
+                "thinking" => 280,
+                _ => DefaultBubbleMotionLeadMilliseconds
+            };
         }
     }
 }

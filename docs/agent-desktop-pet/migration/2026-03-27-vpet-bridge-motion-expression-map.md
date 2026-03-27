@@ -32,9 +32,17 @@
 
 | 字段 | 作用 |
 | --- | --- |
-| `motion` | 说话前先触发一次动作 |
+| `motion` | 协议里仍保留，但当前联调不建议和 `bubble.show` 混用 |
 | `expression` | 说话时附带一个表情映射 |
 | `graph` | 直接指定 VPet 的 graph 名，优先级高于 `expression` |
+
+当前联调结论：
+
+- 直接同帧执行 `bubble.show + 高层 motion` 观感不稳定，容易被 `Say(...)` 的说话态覆盖。
+- 当前桥接对 `touch_head / touch_body / pinch / thinking` 已改成更接近 VPet 原生的编排：
+  `DisplayStopForce(...) -> Say(text, 原生 graph, force: true)`。
+- 其他未特化的 `bubble.motion` 仍走“先动作、再说话”的回退顺序。
+- 如果想要更明显、更完整的动作表现，仍建议拆成单独的 `motion.play`。
 
 ## 4. 已确认稳定的表情 / graph 映射
 
@@ -62,7 +70,7 @@
 
 ## 7. 当前推荐的后端事件写法
 
-### 7.1 消息 + 动作 + 表情
+### 7.1 消息 + 顺序动作 + 表情
 
 ```json
 {
@@ -73,7 +81,28 @@
 }
 ```
 
-### 7.2 进入思考态
+说明：当前桥接会先执行 `touch_body`，再延迟说话，不再和说话态同帧硬切。
+
+### 7.2 单独动作
+
+```json
+{
+  "type": "motion.play",
+  "motion": "touch_body"
+}
+```
+
+### 7.3 消息 + 表情
+
+```json
+{
+  "type": "bubble.show",
+  "text": "你突然这么说，我会害羞的……",
+  "expression": "shy"
+}
+```
+
+### 7.4 进入思考态
 
 ```json
 {
@@ -82,7 +111,7 @@
 }
 ```
 
-### 7.3 直接指定 graph
+### 7.5 直接指定 graph
 
 ```json
 {

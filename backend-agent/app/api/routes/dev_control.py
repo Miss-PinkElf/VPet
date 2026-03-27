@@ -120,34 +120,71 @@ CONTROL_PAGE_HTML = """
 
         <div class="grid">
           <label id="field-bubble-motion" class="hidden">
-            bubble.motion
-            <input id="bubble-motion" type="text" placeholder="例如 idle / touch_head / pinch" />
+            bubble.motion（`touch_head / touch_body / pinch / thinking` 走原生编排）
+            <select id="bubble-motion">
+              <option value="">无</option>
+              <option value="touch_body">touch_body</option>
+              <option value="touch_head">touch_head</option>
+              <option value="pinch">pinch</option>
+              <option value="thinking">thinking</option>
+              <option value="idle">idle</option>
+            </select>
           </label>
 
           <label id="field-graph" class="hidden">
             graph
-            <input id="graph" type="text" placeholder="例如 think / pinch / 自定义 graph 名" />
+            <select id="graph">
+              <option value="">无</option>
+              <option value="think">think</option>
+              <option value="pinch">pinch</option>
+            </select>
           </label>
         </div>
 
         <label id="field-emotion" class="hidden">
           emotion
-          <input id="emotion" type="text" placeholder="例如 shy / think / pinch" />
+          <select id="emotion">
+            <option value="">无</option>
+            <option value="shy">shy</option>
+            <option value="think">think</option>
+            <option value="thinking">thinking</option>
+            <option value="pinch">pinch</option>
+          </select>
         </label>
 
         <label id="field-motion" class="hidden">
           motion
-          <input id="motion" type="text" placeholder="例如 idle / move / touch_head / sleep" />
+          <select id="motion">
+            <option value="">请选择</option>
+            <option value="idle">idle</option>
+            <option value="move">move</option>
+            <option value="normal">normal</option>
+            <option value="touch_head">touch_head</option>
+            <option value="touch_body">touch_body</option>
+            <option value="sleep">sleep</option>
+            <option value="raised">raised</option>
+            <option value="state_one">state_one</option>
+            <option value="pinch">pinch</option>
+            <option value="thinking">thinking</option>
+          </select>
         </label>
 
         <label id="field-mode" class="hidden">
           mode
-          <input id="mode" type="text" placeholder="例如 normal / thinking" />
+          <select id="mode">
+            <option value="">请选择</option>
+            <option value="normal">normal</option>
+            <option value="thinking">thinking</option>
+          </select>
         </label>
 
         <label id="field-intent" class="hidden">
           intent
-          <input id="intent" type="text" placeholder="例如 dock_right / follow_cursor" />
+          <select id="intent">
+            <option value="">请选择</option>
+            <option value="dock_right">dock_right</option>
+            <option value="follow_cursor">follow_cursor</option>
+          </select>
         </label>
 
         <button type="submit">Send</button>
