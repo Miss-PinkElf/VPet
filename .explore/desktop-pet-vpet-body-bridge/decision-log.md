@@ -27,3 +27,10 @@
 - **原因**：后续需求、探索、实施、handoff 都要走同一套标准结构。
 - **放弃的方案**：继续把新增记录写回 `.codex/explore/`。
 - **影响**：新的真相源已经切换到 `.explore/desktop-pet-vpet-body-bridge/`。
+
+## [2026-03-27] 决策：窗口移动协议收敛为 `window.move(dx, dy)`
+- **背景**：测试页里原有 `move.intent` 没有接到 VPet，且 `follow_cursor` 一类 intent 语义过虚。
+- **选择**：正式引入显式 `window.move(dx, dy)`，并仅保留 `move.intent` 的最薄兼容层。
+- **原因**：VPet 当前最稳定的移动入口就是 `MW.Core.Controller.MoveWindows(...)`，显式位移协议最直接、最可验证。
+- **放弃的方案**：继续围绕 `move.intent` 扩语义，或为了移动协议去深改 `GameCore`。
+- **影响**：测试页、后端 schema、插件消费逻辑都统一转向显式位移协议。

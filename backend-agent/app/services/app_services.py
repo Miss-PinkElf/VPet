@@ -7,6 +7,7 @@ from .chat_orchestrator import ChatOrchestrator
 from .event_bus import EventBus
 from .llm_service import LlmService
 from .memory_service import MemoryService
+from .vpet_state_store import VPetStateStore
 
 
 @dataclass
@@ -17,6 +18,7 @@ class AppServices:
     llm_service: LlmService
     behavior_policy_engine: BehaviorPolicyEngine
     chat_orchestrator: ChatOrchestrator
+    vpet_state_store: VPetStateStore
 
 
 def create_app_services(settings: Settings) -> AppServices:
@@ -24,6 +26,7 @@ def create_app_services(settings: Settings) -> AppServices:
     memory_service = MemoryService(store=InMemoryStore())
     llm_service = LlmService(settings)
     behavior_policy_engine = BehaviorPolicyEngine()
+    vpet_state_store = VPetStateStore()
     chat_orchestrator = ChatOrchestrator(
         settings=settings,
         llm_service=llm_service,
@@ -36,4 +39,5 @@ def create_app_services(settings: Settings) -> AppServices:
         llm_service=llm_service,
         behavior_policy_engine=behavior_policy_engine,
         chat_orchestrator=chat_orchestrator,
+        vpet_state_store=vpet_state_store,
     )

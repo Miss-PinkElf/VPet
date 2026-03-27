@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,6 +27,8 @@ namespace VPet.Plugin.AgentBridge
         private readonly HttpClient httpClient;
         private CancellationTokenSource cancellationTokenSource;
         private Task pollingTask;
+        private DateTimeOffset lastStateReportedAt = DateTimeOffset.MinValue;
+        private string lastAppliedEventType;
         private int started;
 
         public AgentBridgePoller(IMainWindow mainWindow, AgentBridgeConfig config)
@@ -84,6 +87,11 @@ namespace VPet.Plugin.AgentBridge
                     if (bridgeEvent != null)
                     {
                         await DispatchEventAsync(bridgeEvent, cancellationToken);
+                        await ReportStateAsync(force: true, cancellationToken);
+                    }
+                    else
+                    {
+                        await ReportStateAsync(force: false, cancellationToken);
                     }
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -140,15 +148,27 @@ namespace VPet.Plugin.AgentBridge
             {
                 case "bubble.show":
                     await ShowBubbleAsync(bridgeEvent, cancellationToken);
+                    lastAppliedEventType = "bubble.show";
                     break;
                 case "emotion.set":
                     await mainWindow.Dispatcher.InvokeAsync(() => ApplyExpressionEvent(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
+                    lastAppliedEventType = "emotion.set";
                     break;
                 case "motion.play":
                     await mainWindow.Dispatcher.InvokeAsync(() => PlayMotion(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
+                    lastAppliedEventType = "motion.play";
                     break;
                 case "mode.switch":
                     await mainWindow.Dispatcher.InvokeAsync(() => SwitchMode(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
+                    lastAppliedEventType = "mode.switch";
+                    break;
+                case "window.move":
+                    await mainWindow.Dispatcher.InvokeAsync(() => MoveWindow(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
+                    lastAppliedEventType = "window.move";
+                    break;
+                case "move.intent":
+                    await mainWindow.Dispatcher.InvokeAsync(() => MoveFromIntent(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
+                    lastAppliedEventType = "move.intent";
                     break;
             }
         }
@@ -269,6 +289,48 @@ namespace VPet.Plugin.AgentBridge
             }
         }
 
+        private void MoveWindow(AgentBridgeEvent bridgeEvent)
+        {
+            var deltaX = bridgeEvent.Dx ?? 0d;
+            var deltaY = bridgeEvent.Dy ?? 0d;
+            if (Math.Abs(deltaX) < double.Epsilon && Math.Abs(deltaY) < double.Epsilon)
+            {
+                return;
+            }
+
+            mainWindow.Main?.DisplayMove();
+            mainWindow.Core?.Controller?.MoveWindows(deltaX, deltaY);
+        }
+
+        private void MoveFromIntent(AgentBridgeEvent bridgeEvent)
+        {
+            var controller = mainWindow.Core?.Controller;
+            var zoomRatio = controller?.ZoomRatio ?? 0d;
+            if (controller == null || zoomRatio <= 0d)
+            {
+                return;
+            }
+
+            var intentKey = bridgeEvent.Intent?.Trim().ToLowerInvariant();
+            var (deltaX, deltaY) = intentKey switch
+            {
+                "dock_left" => (-controller.GetWindowsDistanceLeft() / zoomRatio, 0d),
+                "dock_right" => (controller.GetWindowsDistanceRight() / zoomRatio, 0d),
+                "dock_top" => (0d, -controller.GetWindowsDistanceUp() / zoomRatio),
+                "dock_bottom" => (0d, controller.GetWindowsDistanceDown() / zoomRatio),
+                _ => (0d, 0d)
+            };
+
+            if (Math.Abs(deltaX) < double.Epsilon && Math.Abs(deltaY) < double.Epsilon)
+            {
+                Trace.WriteLine($"[AgentBridge] Unsupported move.intent: {bridgeEvent.Intent}");
+                return;
+            }
+
+            mainWindow.Main?.DisplayMove();
+            controller.MoveWindows(deltaX, deltaY);
+        }
+
         private string ResolveGraphName(AgentBridgeEvent bridgeEvent)
         {
             if (!string.IsNullOrWhiteSpace(bridgeEvent.Graph))
@@ -359,6 +421,80 @@ namespace VPet.Plugin.AgentBridge
                 "pinch" => 520,
                 "thinking" => 280,
                 _ => DefaultBubbleMotionLeadMilliseconds
+            };
+        }
+
+        private async Task ReportStateAsync(bool force, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(config.StateReportUrl))
+            {
+                return;
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            if (!force && now - lastStateReportedAt < TimeSpan.FromMilliseconds(config.StateReportIntervalMilliseconds))
+            {
+                return;
+            }
+
+            AgentBridgeStateSnapshot snapshot;
+            try
+            {
+                snapshot = await mainWindow.Dispatcher.InvokeAsync(
+                    CaptureStateSnapshot,
+                    DispatcherPriority.Background,
+                    cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (snapshot == null)
+            {
+                return;
+            }
+
+            var content = new StringContent(JsonSerializer.Serialize(snapshot, JsonOptions), Encoding.UTF8, "application/json");
+
+            try
+            {
+                using var response = await httpClient.PostAsync(config.StateReportUrl, content, cancellationToken);
+                if (response.IsSuccessStatusCode)
+                {
+                    lastStateReportedAt = now;
+                    return;
+                }
+
+                Trace.WriteLine($"[AgentBridge] State report failed: {(int)response.StatusCode} {response.StatusCode}");
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"[AgentBridge] State report failed: {ex.Message}");
+            }
+        }
+
+        private AgentBridgeStateSnapshot CaptureStateSnapshot()
+        {
+            var controller = mainWindow.Core?.Controller;
+            var zoomRatio = controller?.ZoomRatio ?? 1d;
+            var left = controller?.GetWindowsDistanceLeft() ?? 0d;
+            var top = controller?.GetWindowsDistanceUp() ?? 0d;
+            var displayType = mainWindow.Main?.DisplayType;
+
+            return new AgentBridgeStateSnapshot
+            {
+                Timestamp = DateTimeOffset.UtcNow,
+                Left = zoomRatio > 0d ? left / zoomRatio : left,
+                Top = zoomRatio > 0d ? top / zoomRatio : top,
+                ZoomRatio = zoomRatio,
+                DisplayName = displayType?.Name,
+                DisplayType = displayType?.Type.ToString(),
+                Mode = mainWindow.Core?.Save?.Mode.ToString(),
+                LastEventType = lastAppliedEventType
             };
         }
     }

@@ -83,12 +83,29 @@ CONTROL_PAGE_HTML = """
         min-height: 24px;
         font-size: 14px;
       }
+      .state-panel {
+        margin-top: 24px;
+        padding: 16px;
+        border-radius: 16px;
+        background: #eef4ff;
+      }
+      .state-panel h2 {
+        margin: 0 0 12px;
+        font-size: 16px;
+      }
+      #latest-state {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 13px;
+        line-height: 1.5;
+      }
     </style>
   </head>
   <body>
     <main>
       <h1>桌宠后端测试页</h1>
-      <p>这个页面只用于联调。选择一种高层事件并发送，前端应按事件类型更新对话气泡、状态或动作意图。</p>
+      <p>这个页面只用于联调。选择一种高层事件并发送，前端应按事件类型更新对话气泡、动作或窗口位置，下面会显示最新的 VPet 状态回传。</p>
       <form id="control-form">
         <label>
           事件类型
@@ -97,6 +114,7 @@ CONTROL_PAGE_HTML = """
             <option value="emotion.set">emotion.set</option>
             <option value="motion.play">motion.play</option>
             <option value="mode.switch">mode.switch</option>
+            <option value="window.move">window.move</option>
             <option value="move.intent">move.intent</option>
           </select>
         </label>
@@ -179,17 +197,35 @@ CONTROL_PAGE_HTML = """
         </label>
 
         <label id="field-intent" class="hidden">
-          intent
+          intent（legacy）
           <select id="intent">
             <option value="">请选择</option>
+            <option value="dock_left">dock_left</option>
             <option value="dock_right">dock_right</option>
-            <option value="follow_cursor">follow_cursor</option>
+            <option value="dock_top">dock_top</option>
+            <option value="dock_bottom">dock_bottom</option>
           </select>
         </label>
+
+        <div class="grid">
+          <label id="field-dx" class="hidden">
+            dx（逻辑位移）
+            <input id="dx" type="number" step="10" value="120" />
+          </label>
+
+          <label id="field-dy" class="hidden">
+            dy（逻辑位移）
+            <input id="dy" type="number" step="10" value="0" />
+          </label>
+        </div>
 
         <button type="submit">Send</button>
       </form>
       <p id="status"></p>
+      <section class="state-panel">
+        <h2>最新状态回传</h2>
+        <pre id="latest-state">等待 VPet 回传状态...</pre>
+      </section>
     </main>
     <script>
       const form = document.getElementById('control-form');
@@ -203,7 +239,10 @@ CONTROL_PAGE_HTML = """
       const priorityInput = document.getElementById('priority');
       const modeInput = document.getElementById('mode');
       const intentInput = document.getElementById('intent');
+      const dxInput = document.getElementById('dx');
+      const dyInput = document.getElementById('dy');
       const status = document.getElementById('status');
+      const latestState = document.getElementById('latest-state');
       const fieldText = document.getElementById('field-text');
       const fieldDuration = document.getElementById('field-duration');
       const fieldEmotion = document.getElementById('field-emotion');
@@ -213,6 +252,8 @@ CONTROL_PAGE_HTML = """
       const fieldPriority = document.getElementById('field-priority');
       const fieldMode = document.getElementById('field-mode');
       const fieldIntent = document.getElementById('field-intent');
+      const fieldDx = document.getElementById('field-dx');
+      const fieldDy = document.getElementById('field-dy');
 
       const syncVisibleFields = () => {
         const nextType = eventTypeSelect.value;
@@ -224,11 +265,37 @@ CONTROL_PAGE_HTML = """
         fieldGraph.classList.toggle('hidden', !(nextType === 'bubble.show' || nextType === 'emotion.set'));
         fieldPriority.classList.toggle('hidden', nextType !== 'motion.play');
         fieldMode.classList.toggle('hidden', nextType !== 'mode.switch');
+        fieldDx.classList.toggle('hidden', nextType !== 'window.move');
+        fieldDy.classList.toggle('hidden', nextType !== 'window.move');
         fieldIntent.classList.toggle('hidden', nextType !== 'move.intent');
+      };
+
+      const renderState = (state) => {
+        if (!state) {
+          latestState.textContent = '后端已启动，但还没收到 VPet 插件状态。';
+          return;
+        }
+
+        latestState.textContent = JSON.stringify(state, null, 2);
+      };
+
+      const refreshState = async () => {
+        try {
+          const response = await fetch('/api/dev/state');
+          const result = await response.json();
+          if (!response.ok) {
+            throw new Error(result.detail || '状态拉取失败');
+          }
+          renderState(result.state || null);
+        } catch (error) {
+          latestState.textContent = error.message || '状态拉取失败';
+        }
       };
 
       eventTypeSelect.addEventListener('change', syncVisibleFields);
       syncVisibleFields();
+      refreshState();
+      window.setInterval(refreshState, 1500);
 
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -246,6 +313,8 @@ CONTROL_PAGE_HTML = """
             priority: Number(priorityInput.value),
             mode: modeInput.value,
             intent: intentInput.value,
+            dx: Number(dxInput.value),
+            dy: Number(dyInput.value),
           };
 
           const response = await fetch('/api/dev/messages', {
@@ -261,6 +330,7 @@ CONTROL_PAGE_HTML = """
 
           status.textContent = `已推送：${result.event.type}`;
           textInput.value = '';
+          refreshState();
         } catch (error) {
           status.textContent = error.message || '发送失败';
         }

@@ -3,6 +3,7 @@ import asyncio
 from fastapi import APIRouter, Depends, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from ...schemas.events import VPetStateResponse, VPetStateSnapshot
 from ...services.app_services import AppServices
 from ..dependencies import get_services
 
@@ -40,3 +41,17 @@ async def poll_next_event(services: AppServices = Depends(get_services)) -> Resp
         return Response(status_code=204)
 
     return JSONResponse(content=event.model_dump())
+
+
+@router.post('/vpet/state', response_model=VPetStateResponse)
+async def update_vpet_state(
+    snapshot: VPetStateSnapshot,
+    services: AppServices = Depends(get_services),
+) -> VPetStateResponse:
+    state = services.vpet_state_store.update(snapshot)
+    return VPetStateResponse(status='ok', state=state)
+
+
+@router.get('/api/dev/state', response_model=VPetStateResponse)
+async def get_vpet_state(services: AppServices = Depends(get_services)) -> VPetStateResponse:
+    return VPetStateResponse(status='ok', state=services.vpet_state_store.get_latest())

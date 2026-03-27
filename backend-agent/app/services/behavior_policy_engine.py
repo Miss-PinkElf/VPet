@@ -8,6 +8,7 @@ from ..schemas.events import (
     MotionPlayEvent,
     MoveIntentEvent,
     PetEvent,
+    WindowMoveEvent,
 )
 
 
@@ -59,5 +60,8 @@ class BehaviorPolicyEngine:
             if not request.intent or not request.intent.strip():
                 raise HTTPException(status_code=422, detail='move.intent 需要提供 intent。')
             return MoveIntentEvent(intent=request.intent.strip(), source=source)
+
+        if request.type == 'window.move':
+            return WindowMoveEvent(dx=request.dx, dy=request.dy, source=source)
 
         raise HTTPException(status_code=422, detail='不支持的事件类型。')

@@ -19,5 +19,11 @@ namespace VPet.Plugin.AgentBridge
         public string Mode { get; set; }
 
         public string Style { get; set; }
+
+        public string Intent { get; set; }
+
+        public double? Dx { get; set; }
+
+        public double? Dy { get; set; }
     }
 }

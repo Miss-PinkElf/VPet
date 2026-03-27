@@ -128,5 +128,46 @@
 
 - 运行时导出当前 `GraphsName` / `GraphsList` 的工具
 - 更完整的 `emotion -> graph` 映射表
-- `window.move`
-- 最小状态回传
+- 更完整的状态回传
+
+## 9. 已收敛的窗口移动协议
+
+`move.intent` 在测试页阶段暴露过，但它的语义过虚，难以稳定落到 VPet 的具体位移能力上。
+当前桥接已经收敛为更明确的 `window.move`：
+
+```json
+{
+  "type": "window.move",
+  "dx": 120,
+  "dy": 0
+}
+```
+
+说明：
+
+- `dx / dy` 是传给 `MW.Core.Controller.MoveWindows(...)` 的逻辑位移量
+- VPet 内部会再乘以当前 `ZoomRatio`
+- 正值表示向右 / 向下，负值表示向左 / 向上
+
+兼容层：
+
+- 插件仍暂时接受 `move.intent`
+- 当前只保留 `dock_left / dock_right / dock_top / dock_bottom` 这类可明确收敛到边界位移的 intent
+- `follow_cursor` 这类需要更深交互语义的 intent 不再作为第一阶段承诺能力
+
+## 10. 最小状态回传
+
+当前最小状态回传用于联调闭环验证，VPet 插件会把以下字段 POST 回后端：
+
+- `left`
+- `top`
+- `zoom_ratio`
+- `display_name`
+- `display_type`
+- `mode`
+- `last_event_type`
+
+说明：
+
+- `left / top` 是按当前 `ZoomRatio` 归一化后的逻辑位置，便于直接和 `window.move(dx, dy)` 对比
+- 当前测试页会展示最新一份状态快照，用来验证 `window.move` 的实际效果

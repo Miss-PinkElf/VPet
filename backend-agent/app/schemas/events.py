@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Literal, Optional, Union
 
 from pydantic import BaseModel, Field
@@ -38,17 +39,24 @@ class MoveIntentEvent(BasePetEvent):
     intent: str = Field(min_length=1, max_length=80)
 
 
+class WindowMoveEvent(BasePetEvent):
+    type: Literal['window.move'] = 'window.move'
+    dx: float = Field(default=0)
+    dy: float = Field(default=0)
+
+
 PetEvent = Union[
     BubbleShowEvent,
     EmotionSetEvent,
     MotionPlayEvent,
     ModeSwitchEvent,
     MoveIntentEvent,
+    WindowMoveEvent,
 ]
 
 
 class DevEventRequest(BaseModel):
-    type: Literal['bubble.show', 'emotion.set', 'motion.play', 'mode.switch', 'move.intent']
+    type: Literal['bubble.show', 'emotion.set', 'motion.play', 'mode.switch', 'move.intent', 'window.move']
     text: Optional[str] = Field(default=None, max_length=2000)
     duration_ms: int = Field(default=5000, ge=1000, le=20000)
     emotion: Optional[str] = Field(default=None, max_length=80)
@@ -58,8 +66,27 @@ class DevEventRequest(BaseModel):
     priority: int = Field(default=50, ge=0, le=100)
     mode: Optional[str] = Field(default=None, max_length=80)
     intent: Optional[str] = Field(default=None, max_length=80)
+    dx: float = Field(default=0)
+    dy: float = Field(default=0)
 
 
 class DevEventResponse(BaseModel):
     status: Literal['ok']
     event: PetEvent
+
+
+class VPetStateSnapshot(BaseModel):
+    source: str = Field(default='vpet-plugin')
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    left: float
+    top: float
+    zoom_ratio: float = Field(gt=0)
+    display_name: Optional[str] = Field(default=None, max_length=120)
+    display_type: Optional[str] = Field(default=None, max_length=120)
+    mode: Optional[str] = Field(default=None, max_length=80)
+    last_event_type: Optional[str] = Field(default=None, max_length=80)
+
+
+class VPetStateResponse(BaseModel):
+    status: Literal['ok']
+    state: Optional[VPetStateSnapshot] = None
