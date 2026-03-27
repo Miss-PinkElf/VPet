@@ -53,32 +53,111 @@ function Stop-ProcessIfRunning {
     Get-Process -Name $Name -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 }
 
-function Stop-BackendByPort {
+function Get-BackendListeningProcessIds {
+    $processIds = @()
+
     try {
-        $owningProcessIds = Get-NetTCPConnection -LocalPort $BackendPort -State Listen -ErrorAction Stop |
-            Select-Object -ExpandProperty OwningProcess -Unique
-        foreach ($processId in $owningProcessIds) {
-            Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
-        }
+        $processIds += @(Get-NetTCPConnection -LocalPort $BackendPort -State Listen -ErrorAction Stop |
+            Select-Object -ExpandProperty OwningProcess -Unique)
     } catch {
-        $netstatOutput = netstat -ano | Select-String ":$BackendPort\s+.*LISTENING\s+(\d+)$"
-        foreach ($line in $netstatOutput) {
-            $processId = [int]($line.Matches[0].Groups[1].Value)
-            Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
-        }
     }
 
-    # uvicorn --reload will keep a parent watcher alive; kill that family too.
+    $netstatOutput = netstat -ano | Select-String ":$BackendPort\s+.*LISTENING\s+(\d+)$"
+    foreach ($line in $netstatOutput) {
+        $processIds += [int]($line.Matches[0].Groups[1].Value)
+    }
+
+    return $processIds | Select-Object -Unique
+}
+
+function Get-BackendCandidateProcessIds {
+    $candidateIds = New-Object 'System.Collections.Generic.HashSet[int]'
+
+    foreach ($processId in (Get-BackendListeningProcessIds)) {
+        $null = $candidateIds.Add([int]$processId)
+    }
+
     Get-CimInstance Win32_Process |
         Where-Object {
             $_.CommandLine -and (
-                ($_.CommandLine -like "*$BackendRunScript*" -and $_.CommandLine -like "*$BackendPort*") -or
+                ($_.CommandLine -like "*$BackendRunScript*") -or
                 ($_.CommandLine -like "*app.main:app*" -and $_.CommandLine -like "*--port $BackendPort*")
             )
         } |
         ForEach-Object {
-            Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+            $null = $candidateIds.Add([int]$_.ProcessId)
         }
+
+    return @($candidateIds)
+}
+
+function Stop-ProcessTree {
+    param(
+        [int]$ProcessId,
+        [System.Collections.Generic.HashSet[int]]$Visited
+    )
+
+    if (-not $Visited.Add($ProcessId)) {
+        return
+    }
+
+    $children = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $ProcessId" -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty ProcessId)
+    foreach ($childId in $children) {
+        Stop-ProcessTree -ProcessId $childId -Visited $Visited
+    }
+
+    Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
+}
+
+function Wait-BackendPortReleased {
+    param(
+        [int]$TimeoutSeconds = 12
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        if ((Get-BackendListeningProcessIds).Count -eq 0) {
+            return
+        }
+        Start-Sleep -Milliseconds 300
+    }
+
+    $remaining = (Get-BackendListeningProcessIds) -join ", "
+    throw "后端端口 $BackendPort 仍被占用，残留进程: $remaining"
+}
+
+function Stop-BackendByPort {
+    $visited = New-Object 'System.Collections.Generic.HashSet[int]'
+    foreach ($processId in (Get-BackendCandidateProcessIds)) {
+        Stop-ProcessTree -ProcessId $processId -Visited $visited
+    }
+    Wait-BackendPortReleased
+}
+
+function Wait-BackendReady {
+    param(
+        [int]$TimeoutSeconds = 20
+    )
+
+    $scenariosUrl = "http://$BackendHost`:$BackendPort/api/dev/scenarios"
+    $controlUrl = "http://$BackendHost`:$BackendPort/dev/control"
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $scenarioResponse = Invoke-WebRequest -UseBasicParsing -Uri $scenariosUrl -TimeoutSec 3
+            $controlResponse = Invoke-WebRequest -UseBasicParsing -Uri $controlUrl -TimeoutSec 3
+            if ($scenarioResponse.StatusCode -eq 200 -and $controlResponse.Content -match 'sequence-editor') {
+                return
+            }
+        } catch {
+        }
+
+        Start-Sleep -Milliseconds 500
+    }
+
+    throw "后端未在限定时间内通过 sequence/scenario 联调页校验：$scenariosUrl"
 }
 
 function Restart-ExistingProcesses {
@@ -143,8 +222,10 @@ function Build-VPet {
 function Start-Backend {
     Write-Host "[STEP] 启动后端 FastAPI 服务" -ForegroundColor Yellow
     $backendCommand = @(
+        "`$host.UI.RawUI.WindowTitle = '$BackendWindowTitle'"
         "`$env:PET_BACKEND_HOST='$BackendHost'"
         "`$env:PET_BACKEND_PORT='$BackendPort'"
+        "`$env:PET_BACKEND_RELOAD='0'"
         "Set-Location '$BackendRoot'"
         "& '$BackendRunScript'"
     ) -join "; "
@@ -172,7 +253,7 @@ if (-not $SkipBuild) {
 Ensure-VPetModLink
 Ensure-AgentBridgeModEnabled
 Start-Backend
-Start-Sleep -Seconds 2
+Wait-BackendReady
 Start-VPet
 
 Write-Host ""

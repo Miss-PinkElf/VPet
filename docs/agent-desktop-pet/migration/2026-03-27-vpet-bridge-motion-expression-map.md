@@ -201,31 +201,49 @@
   - `bubble-then-move`
   - `move-then-motion`
   - `move-then-bubble-touch`
+  - `thinking-walk-think`
+  - `bubble-move-touch-recover`
 
 ### 11.2 自定义 sequence
 
 - `POST /api/dev/sequences`
   - 触发一条最小 sequence，请求体包含 `steps`
 
-最小示例：
+当前联调页默认示例已经升级成 4 步长链路；一个等价示例如下：
 
 ```json
 {
-  "name": "custom-sequence",
+  "name": "thinking-walk-speak-normal",
   "steps": [
     {
       "event": {
-        "type": "bubble.show",
-        "text": "我先说一句。",
-        "duration_ms": 5000
+        "type": "mode.switch",
+        "mode": "thinking"
       }
     },
     {
-      "delay_ms": 280,
+      "delay_ms": 420,
       "event": {
         "type": "window.move",
-        "dx": 120,
-        "dy": 0
+        "dx": 90,
+        "dy": -20
+      }
+    },
+    {
+      "delay_ms": 480,
+      "event": {
+        "type": "bubble.show",
+        "text": "我先想一下，再边移动边回答。",
+        "duration_ms": 5000,
+        "expression": "thinking",
+        "graph": "think"
+      }
+    },
+    {
+      "delay_ms": 520,
+      "event": {
+        "type": "mode.switch",
+        "mode": "normal"
       }
     }
   ]

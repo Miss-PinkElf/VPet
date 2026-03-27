@@ -1,7 +1,7 @@
 # Handoff 索引
 
 ## 最新 handoff
-- [2026-03-27-007-context-save-sequence-state.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-27-007-context-save-sequence-state.md)
+- [2026-03-28-008-sleep-resume-ready.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-28-008-sleep-resume-ready.md)
 
 ## 历史记录
 - `2026-03-27-001-phase1-import.md`
@@ -30,5 +30,9 @@
   - 说明：记录 sequence/scenario 入口落地时的主要实现与验证
 - `2026-03-27-007-context-save-sequence-state.md`
   - 阶段：context save / resume-ready
-  - 状态：latest
+  - 状态：historical
   - 说明：上下文压缩后的最新恢复入口
+- `2026-03-28-008-sleep-resume-ready.md`
+  - 阶段：sleep handoff / startup fixed / long-sequence ready
+  - 状态：latest
+  - 说明：收口标准启动链路并切到 4 步真实联调前的睡前恢复入口

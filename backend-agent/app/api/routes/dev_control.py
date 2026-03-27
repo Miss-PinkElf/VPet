@@ -285,23 +285,39 @@ CONTROL_PAGE_HTML = """
       </section>
       <section class="sequence-panel">
         <h2>自定义 Sequence</h2>
-        <p>这里是最小的 sequence 联调入口。`delay_ms` 表示该步执行前的等待时间，所有事件仍复用现有高层协议。</p>
+        <p>这里继续用于更长链路联调。`delay_ms` 表示该步执行前的等待时间，所有事件仍复用现有高层协议，建议优先用它验证 3-4 步的编排。</p>
         <textarea id="sequence-editor">{
-  "name": "custom-sequence",
+  "name": "thinking-walk-speak-normal",
   "steps": [
     {
       "event": {
-        "type": "bubble.show",
-        "text": "我先说一句。",
-        "duration_ms": 5000
+        "type": "mode.switch",
+        "mode": "thinking"
       }
     },
     {
-      "delay_ms": 280,
+      "delay_ms": 420,
       "event": {
         "type": "window.move",
-        "dx": 120,
-        "dy": 0
+        "dx": 90,
+        "dy": -20
+      }
+    },
+    {
+      "delay_ms": 480,
+      "event": {
+        "type": "bubble.show",
+        "text": "我先想一下，再边移动边回答。",
+        "duration_ms": 5000,
+        "expression": "thinking",
+        "graph": "think"
+      }
+    },
+    {
+      "delay_ms": 520,
+      "event": {
+        "type": "mode.switch",
+        "mode": "normal"
       }
     }
   ]

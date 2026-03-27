@@ -172,3 +172,75 @@
 ### 可以从活跃上下文中移除的内容
 - 这轮详细的路由设计推导
 - 这轮逐次验证时的临时端口操作细节
+
+## Checkpoint 6 - 2026-03-27 Standard 18787 Startup Fix + Long Sequence
+
+### 当前阶段
+- 阶段 3：标准启动链路已收口，开始把 sequence/scenario 提升到 4 步长链路联调
+
+### 本轮完成内容
+- 将 `backend-agent/run-dev.ps1` 与 `run-dev.sh` 改为默认不带 `uvicorn --reload`
+- 为 `run-dev` 补上显式热重载开关：`-Reload` 或 `PET_BACKEND_RELOAD=1`
+- 强化 `start-vpet-bridge.ps1`：
+  - 清理后端进程时同时合并 `Get-NetTCPConnection` 与 `netstat` 的监听 PID
+  - 启动后通过 `/api/dev/scenarios` 与 `sequence-editor` 做 readiness 校验
+- 将 `DevSequenceOrchestrator` 的预设场景扩到 6 个，新增两个 4 步场景
+- 将 `/dev/control` 默认 sequence JSON 升级成 4 步长链路示例
+- 完成验证：
+  - 代码内验证 4 步 scenario / custom sequence 事件顺序正确
+  - 标准 `18787` 链路下 `/api/dev/scenarios` 与 `/dev/control` 均返回新版本内容
+  - 新长链路 scenario 与 4 步自定义 sequence 在 HTTP 层都返回 `accepted`
+
+### 本轮决策与原因
+- 决策：标准启动链路默认不再使用 `uvicorn --reload`
+- 原因：Windows 下 reload watcher/worker 残留会直接污染第一阶段联调，稳定性优先于热重载体验
+- 决策：继续把长链路联调样例下沉到后端 scenario 目录
+- 原因：这样 `/dev/control`、后端验证脚本与后续行为层都能复用同一套 4 步编排
+
+### 本轮沉淀经验
+- Windows 下 `Get-NetTCPConnection` 不一定能完整枚举 reload 家族监听 PID，和 `netstat` 做并集更稳
+- 对标准联调链路，启动后 readiness 校验比单纯 `Start-Sleep 2` 可靠得多
+- 对第一阶段身体层桥接，4 步 sequence 已经足够暴露“思考态 -> 位移 -> 说话 -> 恢复”这类关键编排问题
+
+### 待解决问题
+- 真实 VPet 运行态下，4 步 sequence 的状态时间线是否还需要额外字段辅助判断
+- `move.intent` 何时彻底退出运行时入口
+- `emotion -> graph` 是否继续补运行时导出
+
+### 下一步
+- 在真实 VPet 上继续采样 `thinking-walk-think` 和 `bubble-move-touch-recover` 的状态回传时间线
+- 评估是否需要补 `topmost / hitthrough` 一类最小运行态字段
+- 决定 `move.intent` 的最终退场方式
+
+### 可以从活跃上下文中移除的内容
+- “标准 18787 链路会随机连到旧页面” 这件事
+- “当前长链路只能靠手写临时 JSON 验证” 这件事
+
+## Checkpoint 7 - 2026-03-28 Sleep Handoff
+
+### 当前阶段
+- 阶段 3：标准启动链路已收口，准备暂停并在下个对话继续真实 VPet 长链路联调
+
+### 本轮完成内容
+- 新增睡前 handoff
+- 新增下个新对话可直接粘贴的提示词文件
+- 更新 `handoffs/index.md` 与 `state.md`，把最新恢复入口切到 2026-03-28 handoff
+
+### 本轮决策与原因
+- 决策：暂停前不再继续扩功能，而是先把恢复入口压到最低成本
+- 原因：当前主风险已经从“实现缺失”转到“下次能否零歧义续接真实联调”
+
+### 本轮沉淀经验
+- 当实现、验证、文档和 mission 记录都已经完成一轮收口后，单独再补一份睡前 handoff 最省下次恢复成本
+- 新对话提示词单独落一个 md，比把恢复指令只塞在 handoff 正文里更好复用
+
+### 待解决问题
+- 真实 VPet 上 4 步 scenario 的状态时间线是否需要新字段
+- `move.intent` 的最终退场方式
+- `emotion -> graph` 的长期收敛方式
+
+### 下一步
+- 直接从新的 handoff 和 prompt 文件恢复，继续真实联调
+
+### 可以从活跃上下文中移除的内容
+- 这轮提交前的临时收尾动作

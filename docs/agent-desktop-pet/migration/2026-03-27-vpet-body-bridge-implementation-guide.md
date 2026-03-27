@@ -597,29 +597,35 @@ cmd /c .\VPet-Simulator.Windows\mklink.bat
 
 如果这轮接了后端，再额外跑后端。
 
-### 12.1 当前联调链路的已知坑
+### 12.1 当前联调链路的启动约束
 
-截至 2026-03-27，这个仓库里已经出现过一种情况：
+截至 2026-03-27，标准联调链路已经收口到下面这套默认行为：
 
-- 标准 `18787` 联调端口上残留了旧的 `uvicorn --reload` 进程
-- 即使你重新运行启动脚本，浏览器里仍可能看到旧版 `/dev/control`
+- `backend-agent/run-dev.ps1` 与 `run-dev.sh` 默认不再带 `uvicorn --reload`
+- 只有显式传 `-Reload` 或设置 `PET_BACKEND_RELOAD=1` 才会进入热重载模式
+- `.\start-vpet-bridge.ps1` 会先清理 `18787` 相关监听，再校验：
+  - `GET /api/dev/scenarios` 可访问
+  - `/dev/control` 页面里可见 `sequence-editor`
 
-如果你看到：
+这样做的原因是：
+
+- Windows 下 `uvicorn --reload` 容易留下 watcher / worker 残留
+- 残留进程会让你在 `18787` 上继续看到旧版 `/dev/control`
+
+如果你又看到下面两种现象：
 
 - `/api/dev/scenarios` 返回 `404`
 - `/dev/control` 页面里看不到 `sequence-editor`
 
-优先不要怀疑最新代码没写进去，先排查是不是旧后端进程还活着。
+优先按这个顺序处理：
 
-推荐处理顺序：
-
-1. 清掉所有 `app.main:app --port 18787` 相关进程
-2. 再重新运行 `.\start-vpet-bridge.ps1`
+1. 重新运行 `.\start-vpet-bridge.ps1`
+2. 如果你是手动起后端，确认没有显式打开 `-Reload` 或 `PET_BACKEND_RELOAD=1`
 3. 如果还想隔离验证当前代码本身，可以临时把后端起到 `18788` 一类新端口
 
 一句话：
 
-> 先确认你连到的是“当前后端进程”，再判断功能是否真的没生效。
+> 标准联调链路默认优先保证“连到当前后端”，热重载要显式开启，不再作为默认行为。
 
 然后你反馈给 AI 的内容尽量固定成：
 

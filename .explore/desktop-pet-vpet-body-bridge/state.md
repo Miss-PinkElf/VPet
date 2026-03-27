@@ -1,7 +1,7 @@
 # 当前状态
 
 ## 当前阶段
-- 阶段 3：插件桥接已补上最小 sequence/scenario 联调入口，进入编排层打磨与启动链路收口
+- 阶段 3：sequence/scenario 已扩到长链路样例，标准 18787 启动链路已收口到可用状态
 
 ## 已确认的事实
 - VPet 在本项目中的角色已经冻结为身体层 / 前端执行层。
@@ -58,10 +58,25 @@
   - 代码级路由与 HTML 内容包含新的 sequence/scenario 入口
   - `DevSequenceOrchestrator` 会按延迟顺序把事件写入事件总线
   - 在 18788 端口直起当前后端时，新接口可正常访问
-- 2026-03-27 本轮暴露出一个工具链问题：
-  - 标准 18787 启动链路在本会话里仍可能落到旧 `uvicorn --reload` 进程
-  - 因此 18787 上的 `/dev/control` 可能继续显示旧页面
-  - 这已经被记录为后续排查项，不影响当前 sequence/scenario 代码本身已实现并通过隔离验证
+- `backend-agent/run-dev.ps1` 与 `run-dev.sh` 现已默认关闭 `uvicorn --reload`；只有显式传 `-Reload` 或设置 `PET_BACKEND_RELOAD=1` 才会进入热重载模式。
+- `DevSequenceOrchestrator` 当前预设场景已扩到 6 个，其中新增两个 4 步长链路场景：
+  - `thinking-walk-think`
+  - `bubble-move-touch-recover`
+- `/dev/control` 的默认 sequence 示例已改成 4 步：
+  - `mode.switch(thinking)`
+  - `window.move`
+  - `bubble.show(graph=think)`
+  - `mode.switch(normal)`
+- `start-vpet-bridge.ps1` 现已补上两层启动链路收口：
+  - 关闭旧进程时同时合并 `Get-NetTCPConnection` 和 `netstat` 的监听 PID
+  - 启动后必须通过 `/api/dev/scenarios` 和 `/dev/control` 中 `sequence-editor` 的 readiness 校验
+- 2026-03-27 本轮已完成标准 18787 启动链路验证：
+  - 先复现了旧 `uvicorn --reload` 残留导致的 `404 / 旧页面`
+  - 修复后 `.\start-vpet-bridge.ps1 -SkipBuild` 可正常起链
+  - `GET /api/dev/scenarios` 返回 6 个场景
+  - `GET /dev/control` 可见新的 `sequence-editor` 和长链路默认 JSON
+  - `POST /api/dev/scenarios/thinking-walk-think` 返回 `accepted`
+  - `POST /api/dev/sequences` 的 4 步自定义 sequence 返回 `accepted`
 - `shy -> pinch` 仍是临时近似映射。
 
 ## 工作假设
@@ -73,16 +88,14 @@
 - 现有状态字段是否已经足够支撑第一阶段联调，还是还要继续补 `topmost / hitthrough` 一类桌宠工作态。
 - `move.intent` 的运行时薄兼容要保留多久，是否下一轮就从手动联调 UI 中进一步隐藏。
 - `emotion -> graph` 是否需要继续做运行时导出，而不是只靠人工映射。
-- 为什么标准 18787 启动链路在本会话里仍可能被旧 `uvicorn --reload` 进程劫持，以及如何彻底清理它。
 
 ## 下一步
-- 基于后端 sequence/scenario 入口继续验证更长链路的组合编排，而不只看单条事件。
+- 在真实 VPet 运行态上继续采样 4 步 sequence/scenario 的状态时间线，而不只看后端事件顺序。
 - 判断当前状态集合是否已经足够，还是要再补少量桌宠运行态字段。
 - 决定 `move.intent` 是继续保留运行时薄兼容，还是进入下一轮彻底退到文档兼容。
-- 排查并修复标准 18787 启动链路的旧 `uvicorn --reload` 残留问题。
 
 ## 最新 handoff
-- [2026-03-27-007-context-save-sequence-state.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-27-007-context-save-sequence-state.md)
+- [2026-03-28-008-sleep-resume-ready.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-28-008-sleep-resume-ready.md)
 
 ## 最小活跃上下文摘要
-- 当前重点不是再证明桥接能不能跑，而是借助后端 sequence/scenario 入口、扩展状态快照和真实组合场景，把第一阶段身体层编排打磨到足够稳定，同时收掉标准启动链路里的旧后端残留问题。
+- 当前重点已经收敛到：在标准 18787 链路可稳定拉起的前提下，继续用 4 步 sequence/scenario 和扩展状态快照打磨第一阶段身体层编排，而不是再回头处理启动脚本残留问题。
