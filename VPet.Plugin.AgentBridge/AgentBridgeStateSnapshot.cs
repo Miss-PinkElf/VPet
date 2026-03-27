@@ -17,6 +17,12 @@ namespace VPet.Plugin.AgentBridge
         [JsonPropertyName("top")]
         public double Top { get; set; }
 
+        [JsonPropertyName("right")]
+        public double Right { get; set; }
+
+        [JsonPropertyName("bottom")]
+        public double Bottom { get; set; }
+
         [JsonPropertyName("zoom_ratio")]
         public double ZoomRatio { get; set; }
 
@@ -26,8 +32,23 @@ namespace VPet.Plugin.AgentBridge
         [JsonPropertyName("display_type")]
         public string DisplayType { get; set; }
 
+        [JsonPropertyName("display_animat")]
+        public string DisplayAnimat { get; set; }
+
         [JsonPropertyName("mode")]
         public string Mode { get; set; }
+
+        [JsonPropertyName("working_state")]
+        public string WorkingState { get; set; }
+
+        [JsonPropertyName("work_name")]
+        public string WorkName { get; set; }
+
+        [JsonPropertyName("work_type")]
+        public string WorkType { get; set; }
+
+        [JsonPropertyName("bubble_visible")]
+        public bool BubbleVisible { get; set; }
 
         [JsonPropertyName("last_event_type")]
         public string LastEventType { get; set; }

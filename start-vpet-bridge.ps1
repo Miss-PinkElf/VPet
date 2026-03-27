@@ -13,6 +13,7 @@ $BackendRunScript = Join-Path $BackendRoot "run-dev.ps1"
 $BackendSetupScript = Join-Path $BackendRoot "setup.ps1"
 $VPetProject = Join-Path $RepoRoot "VPet-Simulator.Windows\VPet-Simulator.Windows.csproj"
 $VPetExe = Join-Path $RepoRoot "VPet-Simulator.Windows\bin\x64\Debug\net8.0-windows\VPet-Simulator.Windows.exe"
+$VPetSetting = Join-Path $RepoRoot "VPet-Simulator.Windows\bin\x64\Debug\net8.0-windows\Setting.lps"
 $VPetModLink = Join-Path $RepoRoot "VPet-Simulator.Windows\bin\x64\Debug\net8.0-windows\mod"
 $VPetModTarget = Join-Path $RepoRoot "VPet-Simulator.Windows\mod"
 $BackendWindowTitle = "VPet Backend :$BackendPort"
@@ -87,6 +88,40 @@ function Ensure-VPetModLink {
     }
 }
 
+function Ensure-AgentBridgeModEnabled {
+    if (-not (Test-Path $VPetSetting)) {
+        return
+    }
+
+    $content = Get-Content -Raw $VPetSetting
+    if ($content -match '(?im)^onmod:.*\|agentbridge:\|') {
+        return
+    }
+
+    Write-Host "[STEP] 确保 Setting.lps 已启用 agentbridge mod" -ForegroundColor Yellow
+    if ($content -match '(?im)^onmod:.*$') {
+        $updated = [System.Text.RegularExpressions.Regex]::Replace(
+            $content,
+            '(?im)^onmod:.*$',
+            {
+                param($match)
+                $line = $match.Value.TrimEnd()
+                if ($line.EndsWith('|')) {
+                    return "$line" + "agentbridge:|"
+                }
+                return "$line" + "|agentbridge:|"
+            },
+            1
+        )
+    }
+    else {
+        $separator = if ($content.EndsWith("`r`n") -or $content.EndsWith("`n")) { "" } else { "`r`n" }
+        $updated = "$content$separator" + "onmod:|agentbridge:|`r`n"
+    }
+
+    Set-Content -LiteralPath $VPetSetting -Value $updated -Encoding UTF8NoBOM
+}
+
 function Build-VPet {
     $dotnet = Get-DotnetCommand
     Write-Host "[STEP] 编译 VPet-Simulator.Windows (Debug x64)" -ForegroundColor Yellow
@@ -123,6 +158,7 @@ if (-not $SkipBuild) {
     Build-VPet
 }
 Ensure-VPetModLink
+Ensure-AgentBridgeModEnabled
 Start-Backend
 Start-Sleep -Seconds 2
 Start-VPet

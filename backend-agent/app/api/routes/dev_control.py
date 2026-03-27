@@ -100,12 +100,39 @@ CONTROL_PAGE_HTML = """
         font-size: 13px;
         line-height: 1.5;
       }
+      .scenario-panel {
+        margin-top: 24px;
+        padding: 16px;
+        border-radius: 16px;
+        background: #f6fbf5;
+      }
+      .scenario-panel h2 {
+        margin: 0 0 12px;
+        font-size: 16px;
+      }
+      .scenario-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .scenario-actions button {
+        align-self: auto;
+        min-width: 0;
+        padding: 0 16px;
+        background: linear-gradient(135deg, #4fc28a, #3d96d2);
+      }
+      .scenario-note {
+        margin: 0 0 12px;
+        font-size: 13px;
+        line-height: 1.5;
+        color: #36506f;
+      }
     </style>
   </head>
   <body>
     <main>
       <h1>桌宠后端测试页</h1>
-      <p>这个页面只用于联调。选择一种高层事件并发送，前端应按事件类型更新对话气泡、动作或窗口位置，下面会显示最新的 VPet 状态回传。</p>
+      <p>这个页面只用于联调。选择一种高层事件并发送，前端应按事件类型更新对话气泡、动作或窗口位置。第一阶段默认使用显式 `window.move`，`move.intent` 只保留 legacy 兼容验证。</p>
       <form id="control-form">
         <label>
           事件类型
@@ -115,7 +142,7 @@ CONTROL_PAGE_HTML = """
             <option value="motion.play">motion.play</option>
             <option value="mode.switch">mode.switch</option>
             <option value="window.move">window.move</option>
-            <option value="move.intent">move.intent</option>
+            <option value="move.intent">move.intent (legacy)</option>
           </select>
         </label>
 
@@ -222,6 +249,16 @@ CONTROL_PAGE_HTML = """
         <button type="submit">Send</button>
       </form>
       <p id="status"></p>
+      <section class="scenario-panel">
+        <h2>组合场景</h2>
+        <p class="scenario-note">用于继续验证 `window.move` 和说话/动作的组合体感。这里默认只组合显式 `window.move`，不再把 intent 当主路径。</p>
+        <div class="scenario-actions">
+          <button type="button" data-scenario="move-then-bubble">move -> bubble</button>
+          <button type="button" data-scenario="bubble-then-move">bubble -> move</button>
+          <button type="button" data-scenario="move-then-motion">move -> motion</button>
+          <button type="button" data-scenario="move-then-bubble-touch">move -> bubble.touch</button>
+        </div>
+      </section>
       <section class="state-panel">
         <h2>最新状态回传</h2>
         <pre id="latest-state">等待 VPet 回传状态...</pre>
@@ -254,6 +291,10 @@ CONTROL_PAGE_HTML = """
       const fieldIntent = document.getElementById('field-intent');
       const fieldDx = document.getElementById('field-dx');
       const fieldDy = document.getElementById('field-dy');
+      const scenarioButtons = Array.from(document.querySelectorAll('[data-scenario]'));
+
+      const wait = (milliseconds) =>
+        new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 
       const syncVisibleFields = () => {
         const nextType = eventTypeSelect.value;
@@ -292,10 +333,77 @@ CONTROL_PAGE_HTML = """
         }
       };
 
+      const sendEvent = async (payload) => {
+        const response = await fetch('/api/dev/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.detail || '发送失败');
+        }
+        return result;
+      };
+
+      const scenarioPayloads = {
+        'move-then-bubble': [
+          { type: 'window.move', dx: 120, dy: -20 },
+          { type: 'bubble.show', text: '我先挪一下再说。', duration_ms: 5000, expression: 'thinking', graph: 'think' },
+        ],
+        'bubble-then-move': [
+          { type: 'bubble.show', text: '我边说边换位置。', duration_ms: 5000, motion: 'touch_body', expression: 'shy' },
+          { type: 'window.move', dx: -120, dy: 20 },
+        ],
+        'move-then-motion': [
+          { type: 'window.move', dx: 140, dy: 0 },
+          { type: 'motion.play', motion: 'touch_head', priority: 50 },
+        ],
+        'move-then-bubble-touch': [
+          { type: 'window.move', dx: -120, dy: 0 },
+          { type: 'bubble.show', text: 'move then touch bubble', duration_ms: 5000, motion: 'touch_body', expression: 'shy' },
+        ],
+      };
+
+      const scenarioGapMs = {
+        'move-then-bubble': 450,
+        'bubble-then-move': 280,
+        'move-then-motion': 280,
+        'move-then-bubble-touch': 450,
+      };
+
+      const runScenario = async (scenarioKey) => {
+        const steps = scenarioPayloads[scenarioKey];
+        if (!steps) {
+          throw new Error('未知组合场景');
+        }
+
+        status.textContent = `发送组合场景：${scenarioKey}`;
+        const gapMs = scenarioGapMs[scenarioKey] || 280;
+        for (let index = 0; index < steps.length; index += 1) {
+          await sendEvent(steps[index]);
+          if (index < steps.length - 1) {
+            await wait(gapMs);
+          }
+        }
+        await wait(350);
+        await refreshState();
+        status.textContent = `组合场景完成：${scenarioKey}`;
+      };
+
       eventTypeSelect.addEventListener('change', syncVisibleFields);
       syncVisibleFields();
       refreshState();
       window.setInterval(refreshState, 1500);
+      scenarioButtons.forEach((button) => {
+        button.addEventListener('click', async () => {
+          try {
+            await runScenario(button.dataset.scenario);
+          } catch (error) {
+            status.textContent = error.message || '组合场景发送失败';
+          }
+        });
+      });
 
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -317,16 +425,7 @@ CONTROL_PAGE_HTML = """
             dy: Number(dyInput.value),
           };
 
-          const response = await fetch('/api/dev/messages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-
-          const result = await response.json();
-          if (!response.ok) {
-            throw new Error(result.detail || '发送失败');
-          }
+          const result = await sendEvent(payload);
 
           status.textContent = `已推送：${result.event.type}`;
           textInput.value = '';

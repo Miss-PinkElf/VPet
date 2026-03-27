@@ -64,3 +64,41 @@
 ### 可以从活跃上下文中移除的内容
 - “测试页的 move 事件还没接到 VPet” 这件事
 - “当前没有状态回传闭环” 这件事
+
+## Checkpoint 3 - 2026-03-27 Combo Validation + State Expansion
+
+### 当前阶段
+- 阶段 3：`window.move` 基础闭环之后，继续完成组合体感验证与状态扩展
+
+### 本轮完成内容
+- 扩充 VPet 状态回传，新增 `right / bottom / display_animat / working_state / work_name / work_type / bubble_visible`
+- 在 `/dev/control` 增加组合场景按钮，用于直接验证 `move -> bubble`、`bubble -> move`、`move -> motion` 和 `move -> bubble.touch`
+- 在联调页与文案上把 `move.intent` 明确降级为 legacy 入口
+- 给 `start-vpet-bridge.ps1` 增加 `Setting.lps` 自动启用 `agentbridge` mod 的兜底
+- 完成一轮新的真实联调采样，记录组合场景的状态时间线
+
+### 本轮决策与原因
+- 决策：最小状态回传先补“边界距离 + 动画阶段 + 工作态 + 气泡可见性”，不继续深挖 `GameCore`
+- 原因：这些字段都能从现有公开对象低成本拿到，已经足够支撑第一阶段组合联调
+- 决策：`move.intent` 继续保留运行时薄兼容，但退出第一阶段主验证面
+- 原因：legacy 不一定要立即删掉，但新的联调入口不能再把它和 `window.move` 并列对待
+
+### 本轮沉淀经验
+- `move -> bubble` 可以成立，但节奏不能太紧；本轮采样里约 `450ms` 间隔明显比 `280ms` 稳
+- `bubble -> move` 与 `move -> motion.play` 的体感更稳定，状态也更容易读
+- `bubble_visible` 和 `display_animat` 对组合联调很有用，能看出“事件已经消费”与“视觉状态真正切换”之间的时间差
+- 本地启动链路里，`Setting.lps` 的 `onmod:|agentbridge:|` 应该由脚本兜底，而不是每轮靠人工记忆
+
+### 待解决问题
+- 是否还要继续补极少量桌宠运行态字段
+- `move.intent` 何时彻底退到纯文档兼容
+- 更长链路的动作编排是否需要后端场景层来接手，而不是全靠手点测试页
+
+### 下一步
+- 用扩展后的状态字段继续验证更长链路的编排组合
+- 判断当前状态字段集是否足够
+- 决定 `move.intent` 的最终退场节奏
+
+### 可以从活跃上下文中移除的内容
+- “联调页还只能单条发事件” 这件事
+- “最小状态只能看 left/top 和 display” 这件事

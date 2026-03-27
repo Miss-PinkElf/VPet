@@ -483,6 +483,8 @@ namespace VPet.Plugin.AgentBridge
             var zoomRatio = controller?.ZoomRatio ?? 1d;
             var left = controller?.GetWindowsDistanceLeft() ?? 0d;
             var top = controller?.GetWindowsDistanceUp() ?? 0d;
+            var right = controller?.GetWindowsDistanceRight() ?? 0d;
+            var bottom = controller?.GetWindowsDistanceDown() ?? 0d;
             var displayType = mainWindow.Main?.DisplayType;
 
             return new AgentBridgeStateSnapshot
@@ -490,10 +492,17 @@ namespace VPet.Plugin.AgentBridge
                 Timestamp = DateTimeOffset.UtcNow,
                 Left = zoomRatio > 0d ? left / zoomRatio : left,
                 Top = zoomRatio > 0d ? top / zoomRatio : top,
+                Right = zoomRatio > 0d ? right / zoomRatio : right,
+                Bottom = zoomRatio > 0d ? bottom / zoomRatio : bottom,
                 ZoomRatio = zoomRatio,
                 DisplayName = displayType?.Name,
                 DisplayType = displayType?.Type.ToString(),
+                DisplayAnimat = displayType?.Animat.ToString(),
                 Mode = mainWindow.Core?.Save?.Mode.ToString(),
+                WorkingState = mainWindow.Main?.State.ToString(),
+                WorkName = mainWindow.Main?.NowWork?.Name,
+                WorkType = mainWindow.Main?.NowWork?.Type.ToString(),
+                BubbleVisible = mainWindow.Main?.MsgBar?.Visibility == System.Windows.Visibility.Visible,
                 LastEventType = lastAppliedEventType
             };
         }

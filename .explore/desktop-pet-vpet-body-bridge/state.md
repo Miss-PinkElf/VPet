@@ -1,7 +1,7 @@
 # 当前状态
 
 ## 当前阶段
-- 阶段 3：插件桥接已补上 `window.move` 与最小状态回传，形成基础闭环
+- 阶段 3：插件桥接已完成组合体感验证与状态扩展，进入第一阶段桥接打磨
 
 ## 已确认的事实
 - VPet 在本项目中的角色已经冻结为身体层 / 前端执行层。
@@ -27,29 +27,44 @@
   - `display_type`
   - `mode`
   - `last_event_type`
+- 本轮已把状态快照扩到更适合组合联调的字段：
+  - `right`
+  - `bottom`
+  - `display_animat`
+  - `working_state`
+  - `work_name`
+  - `work_type`
+  - `bubble_visible`
 - 2026-03-27 本地联调已验证一次真实 `window.move`：
   - 发送 `dx=120, dy=-40`
   - 状态从 `left=1105.6, top=1188.8` 变为 `left=1225.6, top=1148.8`
   - 实际增量与请求一致：`delta_left=120, delta_top=-40`
+- 2026-03-27 本轮继续完成了组合体感联调：
+  - `move -> bubble` 在约 `450ms` 间隔下可稳定出现说话气泡
+  - `bubble -> move` 体感稳定，移动时 `bubble_visible=true`
+  - `move -> motion.play(touch_head)` 体感稳定，状态可见 `last_event_type=motion.play`
+  - `move -> bubble.touch_body` 也可用，但切进原生触摸态比 plain bubble 更慢
+- `move.intent` 仍保持最薄运行时兼容，但已在 `/dev/control` 中明确降级为 legacy 入口，不再作为第一阶段主验证路径。
+- `start-vpet-bridge.ps1` 已自动确保运行目录 `Setting.lps` 包含 `onmod:|agentbridge:|`，本地联调少一个常见前置坑。
 - `shy -> pinch` 仍是临时近似映射。
 
 ## 工作假设
-- 当前优先级已从“补移动/回传”切到“继续扩状态消费与更完整身体层协议”。
+- 当前优先级已从“补移动/回传”切到“用更可观测的状态与更稳定的组合编排，继续打磨身体层协议”。
 - 现阶段不需要回退到主工程内置桥接。
 - 当前 `.explore/desktop-pet-vpet-body-bridge/` 将作为新的 mission 真相源，旧 `.codex/explore/desktop-pet-vpet-body-bridge/` 仅保留为 legacy 参考。
 
 ## 待解决的问题
-- 最小状态回传后续是否要补更多工作态字段，而不只是位置和 display。
-- `move.intent` 的 legacy 兼容要保留多久，何时只保留 `window.move`。
+- 现有状态字段是否已经足够支撑第一阶段联调，还是还要继续补 `topmost / hitthrough` 一类桌宠工作态。
+- `move.intent` 的运行时薄兼容要保留多久，是否下一轮就从手动联调 UI 中进一步隐藏。
 - `emotion -> graph` 是否需要继续做运行时导出，而不是只靠人工映射。
 
 ## 下一步
-- 在 `/dev/control` 上继续验证 `window.move + bubble/motion` 的组合体感。
-- 决定最小状态回传是否要继续补充边界距离或工作态字段。
-- 评估是否需要把 `move.intent` 明确降级为 legacy 文档层兼容。
+- 基于新增状态字段继续验证更长链路的组合编排，而不只看单条事件。
+- 判断当前状态集合是否已经足够，还是要再补少量桌宠运行态字段。
+- 决定 `move.intent` 是继续保留运行时薄兼容，还是进入下一轮彻底退到文档兼容。
 
 ## 最新 handoff
-- [2026-03-27-004-window-move-state-loop.md](E:\Learn\Vs\Code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-27-004-window-move-state-loop.md)
+- [2026-03-27-005-combo-validation-state-expansion.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-27-005-combo-validation-state-expansion.md)
 
 ## 最小活跃上下文摘要
-- 当前重点不是再证明路线成立，而是在已具备 `window.move + state` 闭环的插件桥接上继续扩身体层能力与状态消费。
+- 当前重点不是再证明桥接能不能跑，而是借助扩过的状态快照和更贴近真实使用的组合场景，把第一阶段身体层编排打磨到足够稳定。

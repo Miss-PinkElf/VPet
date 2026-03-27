@@ -80,10 +80,17 @@ class VPetStateSnapshot(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     left: float
     top: float
+    right: float = Field(default=0)
+    bottom: float = Field(default=0)
     zoom_ratio: float = Field(gt=0)
     display_name: Optional[str] = Field(default=None, max_length=120)
     display_type: Optional[str] = Field(default=None, max_length=120)
+    display_animat: Optional[str] = Field(default=None, max_length=120)
     mode: Optional[str] = Field(default=None, max_length=80)
+    working_state: Optional[str] = Field(default=None, max_length=80)
+    work_name: Optional[str] = Field(default=None, max_length=120)
+    work_type: Optional[str] = Field(default=None, max_length=80)
+    bubble_visible: bool = False
     last_event_type: Optional[str] = Field(default=None, max_length=80)
 
 
