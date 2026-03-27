@@ -243,6 +243,9 @@
 	</ItemGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\VPet-Simulator.Core\VPet-Simulator.Core.csproj" />
+	  <ProjectReference Include="..\VPet.Plugin.AgentBridge\VPet.Plugin.AgentBridge.csproj">
+	    <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+	  </ProjectReference>
 	  <ProjectReference Include="..\VPet-Simulator.Windows.Interface\VPet-Simulator.Windows.Interface.csproj" />
 	</ItemGroup>
 </Project>

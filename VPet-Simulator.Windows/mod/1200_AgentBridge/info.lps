@@ -1,0 +1,7 @@
+vupmod#AgentBridge:|author#Codex:|gamever#11000:|ver#100:|
+intro#VPet body bridge plugin for backend-agent integration:|
+authorid#0:|
+itemid#1200:|
+cachedate#2026/03/27:|
+lang#zh-Hans:|VPet 身体层桥接插件，负责把 backend-agent 高层事件翻译为桌宠动作与说话编排#VPet 身体层桥接插件:|
+lang#en:|VPet body bridge plugin translating backend-agent events into pet motion and speech choreography#AgentBridge:|

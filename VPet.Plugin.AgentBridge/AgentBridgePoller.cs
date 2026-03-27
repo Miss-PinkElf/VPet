@@ -6,8 +6,11 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
+using VPet_Simulator.Core;
+using VPet_Simulator.Windows.Interface;
+using static VPet_Simulator.Core.GraphInfo;
 
-namespace VPet_Simulator.Windows.AgentBridge
+namespace VPet.Plugin.AgentBridge
 {
     internal sealed class AgentBridgePoller : IDisposable
     {
@@ -18,14 +21,14 @@ namespace VPet_Simulator.Windows.AgentBridge
             PropertyNameCaseInsensitive = true
         };
 
-        private readonly MainWindow mainWindow;
+        private readonly IMainWindow mainWindow;
         private readonly AgentBridgeConfig config;
         private readonly HttpClient httpClient;
         private CancellationTokenSource cancellationTokenSource;
         private Task pollingTask;
         private int started;
 
-        public AgentBridgePoller(MainWindow mainWindow, AgentBridgeConfig config)
+        public AgentBridgePoller(IMainWindow mainWindow, AgentBridgeConfig config)
         {
             this.mainWindow = mainWindow ?? throw new ArgumentNullException(nameof(mainWindow));
             this.config = config ?? throw new ArgumentNullException(nameof(config));
@@ -62,7 +65,7 @@ namespace VPet_Simulator.Windows.AgentBridge
             }
             catch
             {
-                // Ignore shutdown exceptions for the temporary POC bridge.
+                // Ignore shutdown exceptions during bridge teardown.
             }
             finally
             {
@@ -165,9 +168,6 @@ namespace VPet_Simulator.Windows.AgentBridge
                 {
                     if (mainWindow.Main != null)
                     {
-                        // Native-style choreography: let Say(graph) drive the motion + bubble
-                        // inside the same display state machine instead of hard-splicing two
-                        // separate high-level commands.
                         mainWindow.Main.DisplayStopForce(() => mainWindow.Main.Say(bridgeEvent.Text, nativeMotionGraph, force: true));
                     }
                 }, DispatcherPriority.Normal, cancellationToken);
@@ -204,7 +204,7 @@ namespace VPet_Simulator.Windows.AgentBridge
                 : bridgeEvent.Motion;
 
             var motionKey = motionName?.Trim().ToLowerInvariant();
-            if (string.IsNullOrWhiteSpace(motionKey))
+            if (string.IsNullOrWhiteSpace(motionKey) || mainWindow.Main == null)
             {
                 return;
             }
@@ -212,32 +212,36 @@ namespace VPet_Simulator.Windows.AgentBridge
             switch (motionKey)
             {
                 case "pinch":
-                    mainWindow.DisplayPinch();
+                    PlayPinch();
                     return;
                 case "thinking":
                     DisplayGraphLoop("think");
                     return;
+                case "idle":
+                    mainWindow.Main.DisplayIdel();
+                    return;
+                case "move":
+                    mainWindow.Main.DisplayMove();
+                    return;
+                case "normal":
+                    mainWindow.Main.DisplayToNomal();
+                    return;
+                case "touch_head":
+                    mainWindow.Main.DisplayTouchHead();
+                    return;
+                case "touch_body":
+                    mainWindow.Main.DisplayTouchBody();
+                    return;
+                case "sleep":
+                    mainWindow.Main.DisplaySleep();
+                    return;
+                case "raised":
+                    mainWindow.Main.DisplayRaised();
+                    return;
+                case "state_one":
+                    mainWindow.Main.DisplayIdel_StateONE?.Invoke();
+                    return;
             }
-
-            var action = motionKey switch
-            {
-                "idle" => "DisplayIdel",
-                "move" => "DisplayMove",
-                "normal" => "DisplayToNomal",
-                "touch_head" => "DisplayTouchHead",
-                "touch_body" => "DisplayTouchBody",
-                "sleep" => "DisplaySleep",
-                "raised" => "DisplayRaised",
-                "state_one" => "DisplayIdel_StateONE",
-                _ => null
-            };
-
-            if (action == null)
-            {
-                return;
-            }
-
-            mainWindow.RunAction(action);
         }
 
         private void ApplyExpressionEvent(AgentBridgeEvent bridgeEvent)
@@ -260,7 +264,7 @@ namespace VPet_Simulator.Windows.AgentBridge
                     DisplayGraphLoop("think");
                     break;
                 case "normal":
-                    mainWindow.RunAction("DisplayToNomal");
+                    mainWindow.Main?.DisplayToNomal();
                     break;
             }
         }
@@ -281,8 +285,6 @@ namespace VPet_Simulator.Windows.AgentBridge
                 "think" => "think",
                 "thinking" => "think",
                 "pinch" => "pinch",
-                // Inference: VPet lacks a verified built-in "shy" graph name in source hooks,
-                // so the first bridge iteration approximates shy with the pinch face expression.
                 "shy" => "pinch",
                 _ => null
             };
@@ -295,30 +297,41 @@ namespace VPet_Simulator.Windows.AgentBridge
                 return;
             }
 
-            if (mainWindow.Main.DisplayType.Name == graphName && mainWindow.Main.DisplayType.Animat != Core.GraphInfo.AnimatType.C_End)
+            if (mainWindow.Main.DisplayType.Name == graphName && mainWindow.Main.DisplayType.Animat != AnimatType.C_End)
             {
                 return;
             }
 
-            if (HasGraph(graphName, Core.GraphInfo.AnimatType.A_Start))
+            if (HasGraph(graphName, AnimatType.A_Start))
             {
-                mainWindow.Main.Display(graphName, Core.GraphInfo.AnimatType.A_Start, mainWindow.Main.DisplayBLoopingForce);
+                mainWindow.Main.Display(graphName, AnimatType.A_Start, mainWindow.Main.DisplayBLoopingForce);
                 return;
             }
 
-            if (HasGraph(graphName, Core.GraphInfo.AnimatType.B_Loop))
+            if (HasGraph(graphName, AnimatType.B_Loop))
             {
-                mainWindow.Main.Display(graphName, Core.GraphInfo.AnimatType.B_Loop, mainWindow.Main.DisplayBLoopingForce);
+                mainWindow.Main.Display(graphName, AnimatType.B_Loop, mainWindow.Main.DisplayBLoopingForce);
                 return;
             }
 
-            if (HasGraph(graphName, Core.GraphInfo.AnimatType.Single))
+            if (HasGraph(graphName, AnimatType.Single))
             {
-                mainWindow.Main.Display(graphName, Core.GraphInfo.AnimatType.Single, mainWindow.Main.DisplayToNomal);
+                mainWindow.Main.Display(graphName, AnimatType.Single, mainWindow.Main.DisplayToNomal);
             }
         }
 
-        private bool HasGraph(string graphName, Core.GraphInfo.AnimatType animatType)
+        private void PlayPinch()
+        {
+            if (!HasGraph("pinch", AnimatType.A_Start) || mainWindow.Main == null)
+            {
+                return;
+            }
+
+            mainWindow.Main.Display("pinch", AnimatType.A_Start, () =>
+                mainWindow.Main.Display("pinch", AnimatType.B_Loop, () => mainWindow.Main.DisplayCEndtoNomal("pinch")));
+        }
+
+        private bool HasGraph(string graphName, AnimatType animatType)
         {
             return (mainWindow.Core?.Graph?.FindGraphs(graphName, animatType, mainWindow.Core.Save.Mode)?.Count ?? 0) > 0;
         }
@@ -327,14 +340,14 @@ namespace VPet_Simulator.Windows.AgentBridge
         {
             graphName = motionName?.Trim().ToLowerInvariant() switch
             {
-                "touch_head" => mainWindow.Core?.Graph?.FindName(Core.GraphInfo.GraphType.Touch_Head),
-                "touch_body" => mainWindow.Core?.Graph?.FindName(Core.GraphInfo.GraphType.Touch_Body),
+                "touch_head" => mainWindow.Core?.Graph?.FindName(GraphType.Touch_Head),
+                "touch_body" => mainWindow.Core?.Graph?.FindName(GraphType.Touch_Body),
                 "pinch" => "pinch",
                 "thinking" => "think",
                 _ => null
             };
 
-            return !string.IsNullOrWhiteSpace(graphName) && HasGraph(graphName, Core.GraphInfo.AnimatType.A_Start);
+            return !string.IsNullOrWhiteSpace(graphName) && HasGraph(graphName, AnimatType.A_Start);
         }
 
         private static int GetBubbleMotionLeadMilliseconds(string motionName)

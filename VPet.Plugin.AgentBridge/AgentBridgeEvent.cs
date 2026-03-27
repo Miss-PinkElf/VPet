@@ -1,4 +1,4 @@
-namespace VPet_Simulator.Windows.AgentBridge
+namespace VPet.Plugin.AgentBridge
 {
     internal sealed class AgentBridgeEvent
     {

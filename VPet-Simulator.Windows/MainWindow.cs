@@ -24,7 +24,6 @@ using System.Windows.Forms;
 using System.Windows.Interop;
 using System.Windows.Media;
 using VPet_Simulator.Core;
-using VPet_Simulator.Windows.AgentBridge;
 using VPet_Simulator.Windows.Interface;
 using static VPet_Simulator.Core.GraphHelper;
 using static VPet_Simulator.Core.GraphInfo;
@@ -44,8 +43,6 @@ namespace VPet_Simulator.Windows
 {
     public partial class MainWindow : IMainWindow
     {
-        private AgentBridgePoller agentBridgePoller;
-
         /// <summary>
         /// 加载主题
         /// </summary>
@@ -2492,7 +2489,6 @@ namespace VPet_Simulator.Windows
                           NoticeBox.Show("由于插件引起的游戏启动错误".Translate() + "\n" + e.ToString(), "由于插件引起的游戏启动错误".Translate() + '-' + mp.PluginName);
                       }
 
-                  StartAgentBridge();
               });
 
 
@@ -2934,15 +2930,5 @@ namespace VPet_Simulator.Windows
             }
         }
 
-        private void StartAgentBridge()
-        {
-            if (!ReferenceEquals(App.MainWindows.FirstOrDefault(), this) || agentBridgePoller != null)
-            {
-                return;
-            }
-
-            agentBridgePoller = new AgentBridgePoller(this, AgentBridgeConfig.LoadFromEnvironment());
-            agentBridgePoller.Start();
-        }
     }
 }
