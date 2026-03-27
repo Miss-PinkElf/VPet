@@ -102,3 +102,73 @@
 ### 可以从活跃上下文中移除的内容
 - “联调页还只能单条发事件” 这件事
 - “最小状态只能看 left/top 和 display” 这件事
+
+## Checkpoint 4 - 2026-03-27 Sequence / Scenario Entry
+
+### 当前阶段
+- 阶段 3：在已有 `window.move + state` 闭环上补最小 sequence/scenario 联调入口
+
+### 本轮完成内容
+- 在 `backend-agent` 新增最小编排层：
+  - `GET /api/dev/scenarios`
+  - `POST /api/dev/scenarios/{scenario_id}`
+  - `POST /api/dev/sequences`
+- 新增 `DevSequenceOrchestrator`，让后端而不是浏览器脚本负责步骤延迟和事件顺序
+- `/dev/control` 改成从后端读取 scenario 目录，并增加自定义 sequence JSON 入口
+- 更新迁移文档，补充 sequence/scenario 用法和扩展后的状态字段
+- 更新启动脚本，尝试进一步清理 `uvicorn --reload` 家族进程
+
+### 本轮决策与原因
+- 决策：组合场景要下沉到后端，而不是继续写死在浏览器脚本里
+- 原因：这样同一套短编排可以被测试页和后端逻辑复用，也更接近后续行为层
+- 决策：最小 sequence 继续复用现有单事件 schema，不另起一套动作协议
+- 原因：第一阶段重点是编排顺序，不是重新设计底层事件模型
+
+### 本轮沉淀经验
+- 对“说话 -> 位移 -> 动作”这类短链路，后端 sequence 比前端 `wait(...)` 更容易复用和记录
+- `DevSequenceOrchestrator` 这种薄编排层已经足够支撑第一阶段联调，不需要立刻上更重的行为树或任务系统
+- 本会话里标准 18787 链路仍然可能被旧 `uvicorn --reload` 进程劫持；隔离到 18788 端口可以证明当前代码本身是新的
+
+### 待解决问题
+- 标准 18787 启动链路为什么仍可能服务旧 backend
+- 当前 sequence/scenario 是否还需要少量状态字段配合
+- `move.intent` 退场节奏
+
+### 下一步
+- 用新的 backend sequence/scenario 入口继续做更长链路编排验证
+- 排查 18787 标准启动链路的旧 backend 残留问题
+- 评估是否补少量桌宠运行态字段
+
+### 可以从活跃上下文中移除的内容
+- “组合场景必须写死在 `/dev/control` 前端脚本里” 这件事
+- “还没有自定义 sequence 联调入口” 这件事
+
+## Checkpoint 5 - 2026-03-27 Context Save
+
+### 当前阶段
+- 阶段 3：sequence/scenario 已落地，开始为下一轮收口上下文和启动链路问题
+
+### 本轮完成内容
+- 把最新 sequence/scenario 进展同步回 `.explore`
+- 新增 handoff，准备在新对话里直接续接
+- 在迁移实施文档里补上 `18787` 旧 `uvicorn --reload` 进程残留的联调注意事项
+
+### 本轮决策与原因
+- 决策：当前先做 handoff，而不是继续扩新功能
+- 原因：当前上下文已偏长，且 sequence/scenario 主功能已经完成，需要先保证恢复成本足够低
+
+### 本轮沉淀经验
+- 当联调链路里存在旧进程抢端口的问题时，必须把“功能是否实现”和“默认端口是否连到正确进程”分开记录
+- `.explore` 的 handoff 要把“已完成功能”和“残留环境问题”明确拆开写，否则下次容易误判成功/失败边界
+
+### 待解决问题
+- 标准 `18787` 启动链路的旧 backend 残留问题
+- 现有状态字段是否还需要少量补充
+- `move.intent` 的最终退场节奏
+
+### 下一步
+- 从最新 handoff 继续，先处理 `18787` 启动链路问题，再回到更长链路 sequence 编排验证
+
+### 可以从活跃上下文中移除的内容
+- 这轮详细的路由设计推导
+- 这轮逐次验证时的临时端口操作细节

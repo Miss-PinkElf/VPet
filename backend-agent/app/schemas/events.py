@@ -75,6 +75,36 @@ class DevEventResponse(BaseModel):
     event: PetEvent
 
 
+class DevSequenceStepRequest(BaseModel):
+    delay_ms: int = Field(default=0, ge=0, le=20000)
+    event: DevEventRequest
+
+
+class DevSequenceRequest(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=120)
+    source: str = Field(default='dev-sequence', max_length=120)
+    steps: list[DevSequenceStepRequest] = Field(min_length=1, max_length=20)
+
+
+class DevSequenceDispatchResponse(BaseModel):
+    status: Literal['accepted']
+    sequence_name: str
+    step_count: int = Field(ge=1)
+    source: str = Field(max_length=120)
+
+
+class DevScenarioSummary(BaseModel):
+    scenario_id: str = Field(min_length=1, max_length=120)
+    title: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1, max_length=240)
+    step_count: int = Field(ge=1)
+
+
+class DevScenarioListResponse(BaseModel):
+    status: Literal['ok']
+    scenarios: list[DevScenarioSummary]
+
+
 class VPetStateSnapshot(BaseModel):
     source: str = Field(default='vpet-plugin')
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

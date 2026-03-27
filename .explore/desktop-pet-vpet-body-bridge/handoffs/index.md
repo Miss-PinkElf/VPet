@@ -1,7 +1,7 @@
 # Handoff 索引
 
 ## 最新 handoff
-- [2026-03-27-005-combo-validation-state-expansion.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-27-005-combo-validation-state-expansion.md)
+- [2026-03-27-007-context-save-sequence-state.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-27-007-context-save-sequence-state.md)
 
 ## 历史记录
 - `2026-03-27-001-phase1-import.md`
@@ -22,5 +22,13 @@
   - 说明：记录基础闭环打通后的上一份 handoff
 - `2026-03-27-005-combo-validation-state-expansion.md`
   - 阶段：组合体感验证 + 状态扩展
+  - 状态：historical
+  - 说明：记录上一轮组合体验与状态扩展结果
+- `2026-03-27-006-sequence-scenario-entry.md`
+  - 阶段：sequence/scenario 联调入口
+  - 状态：historical
+  - 说明：记录 sequence/scenario 入口落地时的主要实现与验证
+- `2026-03-27-007-context-save-sequence-state.md`
+  - 阶段：context save / resume-ready
   - 状态：latest
-  - 说明：当前应优先读取
+  - 说明：上下文压缩后的最新恢复入口

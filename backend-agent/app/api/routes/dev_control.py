@@ -1,7 +1,13 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import HTMLResponse
 
-from ...schemas.events import DevEventRequest, DevEventResponse
+from ...schemas.events import (
+    DevEventRequest,
+    DevEventResponse,
+    DevScenarioListResponse,
+    DevSequenceDispatchResponse,
+    DevSequenceRequest,
+)
 from ...services.app_services import AppServices
 from ..dependencies import get_services
 
@@ -127,6 +133,29 @@ CONTROL_PAGE_HTML = """
         line-height: 1.5;
         color: #36506f;
       }
+      .sequence-panel {
+        margin-top: 24px;
+        padding: 16px;
+        border-radius: 16px;
+        background: #fff6ea;
+      }
+      .sequence-panel h2 {
+        margin: 0 0 12px;
+        font-size: 16px;
+      }
+      .sequence-panel p {
+        margin: 0 0 12px;
+        font-size: 13px;
+        line-height: 1.5;
+        color: #5d4a27;
+      }
+      .sequence-panel textarea {
+        min-height: 180px;
+      }
+      .sequence-panel button {
+        align-self: auto;
+        background: linear-gradient(135deg, #f0a037, #df6d35);
+      }
     </style>
   </head>
   <body>
@@ -251,13 +280,33 @@ CONTROL_PAGE_HTML = """
       <p id="status"></p>
       <section class="scenario-panel">
         <h2>组合场景</h2>
-        <p class="scenario-note">用于继续验证 `window.move` 和说话/动作的组合体感。这里默认只组合显式 `window.move`，不再把 intent 当主路径。</p>
-        <div class="scenario-actions">
-          <button type="button" data-scenario="move-then-bubble">move -> bubble</button>
-          <button type="button" data-scenario="bubble-then-move">bubble -> move</button>
-          <button type="button" data-scenario="move-then-motion">move -> motion</button>
-          <button type="button" data-scenario="move-then-bubble-touch">move -> bubble.touch</button>
-        </div>
+        <p class="scenario-note">这些组合场景现在由后端 sequence/scenario 层负责调度，前端页面只触发预设场景，不再自己保存步骤与延迟。</p>
+        <div class="scenario-actions" id="scenario-actions"></div>
+      </section>
+      <section class="sequence-panel">
+        <h2>自定义 Sequence</h2>
+        <p>这里是最小的 sequence 联调入口。`delay_ms` 表示该步执行前的等待时间，所有事件仍复用现有高层协议。</p>
+        <textarea id="sequence-editor">{
+  "name": "custom-sequence",
+  "steps": [
+    {
+      "event": {
+        "type": "bubble.show",
+        "text": "我先说一句。",
+        "duration_ms": 5000
+      }
+    },
+    {
+      "delay_ms": 280,
+      "event": {
+        "type": "window.move",
+        "dx": 120,
+        "dy": 0
+      }
+    }
+  ]
+}</textarea>
+        <button type="button" id="run-sequence">Run Sequence</button>
       </section>
       <section class="state-panel">
         <h2>最新状态回传</h2>
@@ -291,7 +340,9 @@ CONTROL_PAGE_HTML = """
       const fieldIntent = document.getElementById('field-intent');
       const fieldDx = document.getElementById('field-dx');
       const fieldDy = document.getElementById('field-dy');
-      const scenarioButtons = Array.from(document.querySelectorAll('[data-scenario]'));
+      const scenarioActions = document.getElementById('scenario-actions');
+      const sequenceEditor = document.getElementById('sequence-editor');
+      const runSequenceButton = document.getElementById('run-sequence');
 
       const wait = (milliseconds) =>
         new Promise((resolve) => window.setTimeout(resolve, milliseconds));
@@ -346,63 +397,83 @@ CONTROL_PAGE_HTML = """
         return result;
       };
 
-      const scenarioPayloads = {
-        'move-then-bubble': [
-          { type: 'window.move', dx: 120, dy: -20 },
-          { type: 'bubble.show', text: '我先挪一下再说。', duration_ms: 5000, expression: 'thinking', graph: 'think' },
-        ],
-        'bubble-then-move': [
-          { type: 'bubble.show', text: '我边说边换位置。', duration_ms: 5000, motion: 'touch_body', expression: 'shy' },
-          { type: 'window.move', dx: -120, dy: 20 },
-        ],
-        'move-then-motion': [
-          { type: 'window.move', dx: 140, dy: 0 },
-          { type: 'motion.play', motion: 'touch_head', priority: 50 },
-        ],
-        'move-then-bubble-touch': [
-          { type: 'window.move', dx: -120, dy: 0 },
-          { type: 'bubble.show', text: 'move then touch bubble', duration_ms: 5000, motion: 'touch_body', expression: 'shy' },
-        ],
-      };
-
-      const scenarioGapMs = {
-        'move-then-bubble': 450,
-        'bubble-then-move': 280,
-        'move-then-motion': 280,
-        'move-then-bubble-touch': 450,
+      const renderScenarioButtons = (scenarios) => {
+        scenarioActions.replaceChildren();
+        scenarios.forEach((scenario) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.dataset.scenario = scenario.scenario_id;
+          button.title = scenario.description;
+          button.textContent = scenario.title;
+          button.addEventListener('click', async () => {
+            try {
+              await runScenario(scenario.scenario_id);
+            } catch (error) {
+              status.textContent = error.message || '组合场景发送失败';
+            }
+          });
+          scenarioActions.appendChild(button);
+        });
       };
 
       const runScenario = async (scenarioKey) => {
-        const steps = scenarioPayloads[scenarioKey];
-        if (!steps) {
-          throw new Error('未知组合场景');
-        }
-
         status.textContent = `发送组合场景：${scenarioKey}`;
-        const gapMs = scenarioGapMs[scenarioKey] || 280;
-        for (let index = 0; index < steps.length; index += 1) {
-          await sendEvent(steps[index]);
-          if (index < steps.length - 1) {
-            await wait(gapMs);
-          }
+        const response = await fetch(`/api/dev/scenarios/${scenarioKey}`, {
+          method: 'POST',
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.detail || '组合场景发送失败');
         }
         await wait(350);
         await refreshState();
-        status.textContent = `组合场景完成：${scenarioKey}`;
+        status.textContent = `组合场景已下发：${result.sequence_name}`;
+      };
+
+      const loadScenarios = async () => {
+        const response = await fetch('/api/dev/scenarios');
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.detail || '组合场景加载失败');
+        }
+        renderScenarioButtons(result.scenarios || []);
+      };
+
+      const runSequence = async () => {
+        let payload;
+        try {
+          payload = JSON.parse(sequenceEditor.value);
+        } catch (error) {
+          throw new Error('sequence JSON 解析失败');
+        }
+
+        const response = await fetch('/api/dev/sequences', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.detail || 'sequence 发送失败');
+        }
+        await wait(350);
+        await refreshState();
+        status.textContent = `sequence 已下发：${result.sequence_name}`;
       };
 
       eventTypeSelect.addEventListener('change', syncVisibleFields);
       syncVisibleFields();
+      loadScenarios().catch((error) => {
+        status.textContent = error.message || '组合场景加载失败';
+      });
       refreshState();
       window.setInterval(refreshState, 1500);
-      scenarioButtons.forEach((button) => {
-        button.addEventListener('click', async () => {
-          try {
-            await runScenario(button.dataset.scenario);
-          } catch (error) {
-            status.textContent = error.message || '组合场景发送失败';
-          }
-        });
+      runSequenceButton.addEventListener('click', async () => {
+        try {
+          await runSequence();
+        } catch (error) {
+          status.textContent = error.message || 'sequence 发送失败';
+        }
       });
 
       form.addEventListener('submit', async (event) => {
@@ -453,3 +524,26 @@ async def send_dev_message(
     event = services.behavior_policy_engine.build_manual_event(request)
     await services.event_bus.publish(event)
     return DevEventResponse(status='ok', event=event)
+
+
+@router.get('/api/dev/scenarios', response_model=DevScenarioListResponse)
+async def list_dev_scenarios(
+    services: AppServices = Depends(get_services),
+) -> DevScenarioListResponse:
+    return DevScenarioListResponse(status='ok', scenarios=services.dev_sequence_orchestrator.list_scenarios())
+
+
+@router.post('/api/dev/scenarios/{scenario_id}', response_model=DevSequenceDispatchResponse)
+async def trigger_dev_scenario(
+    scenario_id: str,
+    services: AppServices = Depends(get_services),
+) -> DevSequenceDispatchResponse:
+    return await services.dev_sequence_orchestrator.dispatch_scenario(scenario_id)
+
+
+@router.post('/api/dev/sequences', response_model=DevSequenceDispatchResponse)
+async def trigger_dev_sequence(
+    request: DevSequenceRequest,
+    services: AppServices = Depends(get_services),
+) -> DevSequenceDispatchResponse:
+    return await services.dev_sequence_orchestrator.dispatch_sequence(request)

@@ -67,6 +67,18 @@ function Stop-BackendByPort {
             Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
         }
     }
+
+    # uvicorn --reload will keep a parent watcher alive; kill that family too.
+    Get-CimInstance Win32_Process |
+        Where-Object {
+            $_.CommandLine -and (
+                ($_.CommandLine -like "*$BackendRunScript*" -and $_.CommandLine -like "*$BackendPort*") -or
+                ($_.CommandLine -like "*app.main:app*" -and $_.CommandLine -like "*--port $BackendPort*")
+            )
+        } |
+        ForEach-Object {
+            Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+        }
 }
 
 function Restart-ExistingProcesses {

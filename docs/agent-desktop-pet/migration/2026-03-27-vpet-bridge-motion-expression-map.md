@@ -161,13 +161,79 @@
 
 - `left`
 - `top`
+- `right`
+- `bottom`
 - `zoom_ratio`
 - `display_name`
 - `display_type`
+- `display_animat`
 - `mode`
+- `working_state`
+- `work_name`
+- `work_type`
+- `bubble_visible`
 - `last_event_type`
 
 说明：
 
-- `left / top` 是按当前 `ZoomRatio` 归一化后的逻辑位置，便于直接和 `window.move(dx, dy)` 对比
-- 当前测试页会展示最新一份状态快照，用来验证 `window.move` 的实际效果
+- `left / top / right / bottom` 都是按当前 `ZoomRatio` 归一化后的逻辑距离，便于直接和 `window.move(dx, dy)` 或边界吸附结果对比
+- `display_animat` 和 `bubble_visible` 用来判断“事件已消费”和“视觉状态真正切换”之间的时间差
+- `working_state / work_name / work_type` 是第一阶段里够用但不深改 `GameCore` 的工作态补充
+- 当前测试页会展示最新一份状态快照，用来验证 `window.move`、动作切换和组合场景的实际效果
+
+## 11. 当前最小 sequence/scenario 联调入口
+
+为了继续验证“说话 + 位移 + 动作”的组合编排，当前 `backend-agent` 已提供两类联调入口：
+
+### 11.1 预设 scenario
+
+- `GET /api/dev/scenarios`
+  - 返回当前联调页可直接触发的预设组合场景目录
+- `POST /api/dev/scenarios/{scenario_id}`
+  - 触发一个由后端负责调度的预设场景
+
+说明：
+
+- 场景的步骤与延迟现在由后端维护
+- `/dev/control` 页面不再自己保存组合步骤
+- 当前默认预设包括：
+  - `move-then-bubble`
+  - `bubble-then-move`
+  - `move-then-motion`
+  - `move-then-bubble-touch`
+
+### 11.2 自定义 sequence
+
+- `POST /api/dev/sequences`
+  - 触发一条最小 sequence，请求体包含 `steps`
+
+最小示例：
+
+```json
+{
+  "name": "custom-sequence",
+  "steps": [
+    {
+      "event": {
+        "type": "bubble.show",
+        "text": "我先说一句。",
+        "duration_ms": 5000
+      }
+    },
+    {
+      "delay_ms": 280,
+      "event": {
+        "type": "window.move",
+        "dx": 120,
+        "dy": 0
+      }
+    }
+  ]
+}
+```
+
+说明：
+
+- `delay_ms` 表示该步执行前的等待时间
+- 每一步的 `event` 仍复用现有单事件协议
+- 第一阶段推荐继续优先使用显式 `window.move`，不要在 sequence 中重新扩散 `move.intent`

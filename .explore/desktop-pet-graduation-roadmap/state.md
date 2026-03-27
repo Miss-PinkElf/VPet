@@ -16,6 +16,7 @@
   - `emotion.set`
   - `bubble.show` 附带 `motion` / `expression` / `graph`
   - `window.move(dx, dy)`
+- 当前 `backend-agent` 已补出最小 `sequence/scenario` 联调入口，可复用短编排而不只发单条事件。
 - 其中 `bubble.show + touch_head/touch_body/pinch/thinking` 已改为更接近 VPet 原生的动作+说话编排。
 - 最小状态回传已经打通，并在本轮扩到更适合组合联调的字段集合。
 
@@ -26,6 +27,7 @@
 ## 待解决的问题
 - 组合编排是否要继续往场景层收敛，而不只停留在单条事件。
 - 论文与答辩材料中如何组织“VPet 身体层化”的过程叙事。
+- 标准启动链路里的旧 backend 残留问题如何在最终演示前彻底收口。
 
 ## 下一步
 - 在插件化版本上继续验证组合事件体感与状态可观测性。

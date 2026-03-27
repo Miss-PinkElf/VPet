@@ -319,10 +319,11 @@ VPet-Simulator.Windows/mod/1200_AgentBridge/
   "mode": "Nomal",
   "working_state": "Nomal",
   "display_type": "Default",
-  "position": {
-    "left": 100,
-    "top": 200
-  }
+  "left": 100,
+  "top": 200,
+  "right": 300,
+  "bottom": 50,
+  "bubble_visible": false
 }
 ```
 
@@ -333,6 +334,48 @@ VPet-Simulator.Windows/mod/1200_AgentBridge/
 - 当前基础模式
 
 就够了。
+
+### 6.3 sequence/scenario 联调入口
+
+当单条事件已经稳定后，建议把“短编排”下沉到后端，而不是继续把延迟逻辑写在浏览器测试页里。
+
+当前最小入口建议分成两类：
+
+- `POST /api/dev/scenarios/{scenario_id}`
+  - 触发一个后端维护的预设组合场景
+- `POST /api/dev/sequences`
+  - 触发一条自定义 sequence
+
+最小 sequence 示例：
+
+```json
+{
+  "name": "custom-sequence",
+  "steps": [
+    {
+      "event": {
+        "type": "bubble.show",
+        "text": "我先说一句。",
+        "duration_ms": 5000
+      }
+    },
+    {
+      "delay_ms": 280,
+      "event": {
+        "type": "window.move",
+        "dx": 120,
+        "dy": 0
+      }
+    }
+  ]
+}
+```
+
+这样做的好处是：
+
+- 组合场景可以被后端和测试页复用
+- 延迟策略不再散落在前端脚本里
+- 后续若要把 sequence 升级成真正的行为编排层，也不需要推翻现有联调入口
 
 ## 7. 推荐的实施顺序
 
@@ -427,6 +470,25 @@ VPet-Simulator.Windows/mod/1200_AgentBridge/
 - `TalkBox.DisplayThink()`
 - `TalkBox.DisplayThinkToSayRnd(...)`
 - `Main.Say(...)`
+
+### 阶段 4.5：补最小 sequence/scenario 编排
+
+目标：
+
+- 不只验证单条事件
+- 让后端可以稳定重放“说话 -> 位移 -> 动作”这类短编排
+
+建议只做最小能力：
+
+- 预设 scenario 目录
+- 自定义 sequence API
+- 继续复用现有单事件 schema
+
+验收标准：
+
+- `/dev/control` 可以直接触发后端预设 scenario
+- 自定义 sequence 可以从后端接口进入
+- 联调时不再需要把步骤和延迟硬编码在浏览器脚本里
 
 ## 8. 为什么推荐“先内置 POC，再插件化”
 
@@ -534,6 +596,30 @@ cmd /c .\VPet-Simulator.Windows\mklink.bat
 ```
 
 如果这轮接了后端，再额外跑后端。
+
+### 12.1 当前联调链路的已知坑
+
+截至 2026-03-27，这个仓库里已经出现过一种情况：
+
+- 标准 `18787` 联调端口上残留了旧的 `uvicorn --reload` 进程
+- 即使你重新运行启动脚本，浏览器里仍可能看到旧版 `/dev/control`
+
+如果你看到：
+
+- `/api/dev/scenarios` 返回 `404`
+- `/dev/control` 页面里看不到 `sequence-editor`
+
+优先不要怀疑最新代码没写进去，先排查是不是旧后端进程还活着。
+
+推荐处理顺序：
+
+1. 清掉所有 `app.main:app --port 18787` 相关进程
+2. 再重新运行 `.\start-vpet-bridge.ps1`
+3. 如果还想隔离验证当前代码本身，可以临时把后端起到 `18788` 一类新端口
+
+一句话：
+
+> 先确认你连到的是“当前后端进程”，再判断功能是否真的没生效。
 
 然后你反馈给 AI 的内容尽量固定成：
 
