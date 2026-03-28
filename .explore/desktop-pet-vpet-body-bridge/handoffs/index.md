@@ -1,7 +1,7 @@
 # Handoff 索引
 
 ## 最新 handoff
-- [2026-03-28-008-sleep-resume-ready.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-28-008-sleep-resume-ready.md)
+- [2026-03-29-012-sleep-handoff-after-sequence-gating.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-29-012-sleep-handoff-after-sequence-gating.md)
 
 ## 历史记录
 - `2026-03-27-001-phase1-import.md`
@@ -34,5 +34,21 @@
   - 说明：上下文压缩后的最新恢复入口
 - `2026-03-28-008-sleep-resume-ready.md`
   - 阶段：sleep handoff / startup fixed / long-sequence ready
-  - 状态：latest
+  - 状态：historical
   - 说明：收口标准启动链路并切到 4 步真实联调前的睡前恢复入口
+- `2026-03-28-009-timeline-observability-legacy-ui-demotion.md`
+  - 阶段：timeline observability / legacy UI demotion
+  - 状态：historical
+  - 说明：记录高频真实联调、`last_event_at` 落地和 `move.intent` 从联调 UI 退场后的恢复入口
+- `2026-03-28-010-smart-move-and-sequence-gating-next.md`
+  - 阶段：smart move / sequence gating next
+  - 状态：historical
+  - 说明：记录移动体感收口、`window.move.style` 落地，以及下一步切到“动作完成门控”的恢复入口
+- `2026-03-28-011-sequence-wait-for-gating-landed.md`
+  - 阶段：sequence wait_for gating landed
+  - 状态：historical
+  - 说明：记录 `wait_for=move_complete|motion_complete` 落地，以及下一步切到真实 VPet 复测的恢复入口
+- `2026-03-29-012-sleep-handoff-after-sequence-gating.md`
+  - 阶段：sleep handoff after sequence gating
+  - 状态：latest
+  - 说明：记录睡前文档收口、明早恢复提示词，以及下一步切到真实 VPet 复测的恢复入口

@@ -1,7 +1,7 @@
 # 当前状态
 
 ## 当前阶段
-- 阶段 3：sequence/scenario 已扩到长链路样例，标准 18787 启动链路已收口到可用状态
+- 阶段 3：移动语义已扩到 `style=smart`，当前重点已从 delay 微调切到“动作完成门控”。
 
 ## 已确认的事实
 - VPet 在本项目中的角色已经冻结为身体层 / 前端执行层。
@@ -20,6 +20,23 @@
 - `/dev/control` 已改成更适合联调的下拉式表单。
 - `/dev/control` 已切到显式 `window.move(dx, dy)` 协议，并展示最新状态快照。
 - `/dev/control` 现已不再把组合步骤硬编码在浏览器侧，而是调用后端 `sequence/scenario` 入口。
+- `/dev/control` 已进一步移除 `move.intent` 手动入口；`move.intent` 只保留运行时 legacy 兼容，不再作为联调主入口。
+- `backend-agent` 现新增更轻的 `/dev/quick-test` 页面：
+  - 读取一份包含多个测试项的 JSON
+  - 将其渲染成可点击的测试按钮
+  - 点击后自动判断是单事件还是 sequence，并直接发送
+- `/dev/quick-test` 现在默认从 mission 文件读取测试目录：
+  - `.explore/desktop-pet-vpet-body-bridge/quick-tests.json`
+  - 页面支持从该文件读取与保存回该文件
+- `quick-tests.json` 现已收口为“当前阶段测试目录”：
+  - 单事件测试
+  - 两条核心 4 步长链路
+  - 观察字段与通过标准
+- `/dev/quick-test` 现已增加“测试结果”区：
+  - 选择一个测试项
+  - 记录 `status + note`
+  - 点击 `Save Result`
+  - 结果将直接回写到 `quick-tests.json`
 - 插件当前会向 `POST /vpet/state` 回传最小状态：
   - `left`
   - `top`
@@ -36,6 +53,8 @@
   - `work_name`
   - `work_type`
   - `bubble_visible`
+- 本轮继续补上了时间观测字段：
+  - `last_event_at`
 - 2026-03-27 本地联调已验证一次真实 `window.move`：
   - 发送 `dx=120, dy=-40`
   - 状态从 `left=1105.6, top=1188.8` 变为 `left=1225.6, top=1148.8`
@@ -47,6 +66,9 @@
   - `move -> bubble.touch_body` 也可用，但切进原生触摸态比 plain bubble 更慢
 - `move.intent` 仍保持最薄运行时兼容，但已在 `/dev/control` 中明确降级为 legacy 入口，不再作为第一阶段主验证路径。
 - `start-vpet-bridge.ps1` 已自动确保运行目录 `Setting.lps` 包含 `onmod:|agentbridge:|`，本地联调少一个常见前置坑。
+- `start-vpet-bridge.ps1` 现会为真实联调链路默认注入更高频的桥接参数：
+  - `VPET_AGENT_BRIDGE_INTERVAL_MS=250`
+  - `VPET_AGENT_BRIDGE_STATE_INTERVAL_MS=500`
 - `backend-agent` 本轮新增了最小编排层：
   - `GET /api/dev/scenarios`
   - `POST /api/dev/scenarios/{scenario_id}`
@@ -77,7 +99,88 @@
   - `GET /dev/control` 可见新的 `sequence-editor` 和长链路默认 JSON
   - `POST /api/dev/scenarios/thinking-walk-think` 返回 `accepted`
   - `POST /api/dev/sequences` 的 4 步自定义 sequence 返回 `accepted`
+- 2026-03-28 本轮重新编译插件并完成真实长链路时间线采样：
+  - `thinking-walk-think` 在高频链路下可按状态读出：
+    - `mode.switch -> window.move -> bubble.show -> mode.switch`
+    - `last_event_at` 可与 `timestamp` 分离出“事件被消费”与“状态被上报”的时刻
+  - `bubble-move-touch-recover` 可按状态读出：
+    - `bubble.show -> window.move -> motion.play -> mode.switch`
+    - `motion.play(touch_head)` 在真实时间线中能稳定出现在 `display_name=touch_head`
+  - `bubble_visible` 仍会在 `mode.switch(normal)` 之后持续一段时间，说明它更适合表达视觉残留，而不是事件消费顺序
+- 真实采样结论：
+  - 现有 `left / top / right / bottom` 已足够支撑边界与位移验证，不需要额外补“边界距离”字段
+  - `working_state / work_name / work_type` 在当前两条 4 步链路里信息量有限，暂不需要继续扩更多工作态字段
+  - 如果后续还要补字段，优先级应放在事件时序/关联性，而不是 `topmost / hitthrough`
 - `shy -> pinch` 仍是临时近似映射。
+- VPet 在空闲阶段会继续自主移动，长时间窗口采样会混入自然位移；联调时应优先比较事件触发后的短窗口状态变化。
+- 2026-03-28 你在 `quick-tests.json` 中回填的真实测试结果显示：
+  - `bubble.show` / `motion.play` / `mode.switch` 基本稳定通过
+  - `window.move` 相关单测与所有含移动的 sequence 普遍不稳定
+  - 体感表现集中为“乱走 / 乱爬 / 顺序错乱”
+- 本轮已定位一个直接根因：
+  - 桥接层在处理 `window.move` 时，同时调用了 `DisplayMove()` 和 `MoveWindows(...)`
+  - `DisplayMove()` 会进入 VPet 原生 `walk/crawl/fall/climb` 运动图，和显式窗口位移叠加
+  - 这会把“物理位移”和“原生带方向/速度语义的运动图”混在一起
+- 本轮已修正：
+  - `window.move` 改为纯位移，不再附带 `DisplayMove()`
+  - legacy `move.intent` 也同步去掉 `DisplayMove()`，避免继续叠加原生运动图
+- 第二轮 quick test 结果显示：
+  - 单独 `window.move` 已从“乱走/乱爬”收敛到“纯移动不带任何动作”
+  - 两条核心 sequence 已从 fail 收敛到 mixed
+  - 当前主要问题已从“移动协议错误”收敛到“sequence 节奏偏快、动作重合”
+- 本轮已继续收口长链路节奏：
+  - `thinking-walk-think`
+    - `window.move` delay: `420 -> 550`
+    - `bubble.show` delay: `480 -> 700`
+    - `mode.switch(normal)` delay: `520 -> 900`
+  - `bubble-move-touch-recover`
+    - `window.move` delay: `300 -> 500`
+    - `motion.play(touch_head)` delay: `320 -> 650`
+    - `mode.switch(normal)` delay: `650 -> 950`
+  - `/dev/control` 默认 sequence 与 `quick-tests.json` 已同步到这组新 delay
+- 你进一步提出的移动体感目标已明确为：
+  - 短距离不要生硬瞬移
+  - 长距离不要慢滑，应该更接近“跳位/闪现”
+- 当前仓库里没有扫描到可直接承诺的稳定“开门闪现” graph/动作入口，因此本轮先实现为：
+  - `window.move(style=smart)` 默认智能移动
+  - 短距离：分步平滑走位
+  - 长距离：直接跳位
+  - 显式可选：`style=smooth|walk`、`style=snap|teleport`
+- `quick-tests.json` 中所有当前阶段移动测试与两条核心 sequence，现已默认改成 `style=smart`
+- 当前已经确认一个更核心的编排问题：
+  - 现有 sequence/scenario 仍是固定 `delay_ms` 编排
+  - 没有真正等待当前动作/位移完成后再进入下一步
+  - 这正是“动作没做完就进下一个”的主要来源
+- 本轮已完成最小 sequence 完成门控落地：
+  - `DevSequenceStepRequest` 新增：
+    - `wait_for`
+    - `wait_timeout_ms`
+    - `settle_ms`
+  - 当前已支持的门控：
+    - `event_applied`
+    - `move_complete`
+    - `motion_complete`
+- 当前门控实现明确依赖现有状态回传，不深改 `GameCore`：
+  - `move_complete` 通过 `last_event_type / last_event_at` 加目标 `left/top` 落点确认
+  - `motion_complete` 先等待 `motion.play` 被消费，再等待 `display_name/display_type` 离开该动作
+- 当前两条核心长链路已从“主要靠 delay”切到“关键步显式门控”：
+  - `thinking-walk-think`
+    - `window.move(style=smart)` 改为 `wait_for=move_complete`
+  - `bubble-move-touch-recover`
+    - `window.move(style=smart)` 改为 `wait_for=move_complete`
+    - `motion.play(touch_head)` 改为 `wait_for=motion_complete`
+- `/dev/control` 默认 sequence 示例与 `.explore/.../quick-tests.json` 已同步切到新的 `wait_for` 语义。
+- `.explore/.../spec/protocol-phase1.md` 已同步收口为“第一阶段已有最小完成门控，但不是所有步骤都已全覆盖”。
+- 本轮代码级验证已完成：
+  - `python -m compileall backend-agent/app` 通过
+  - 使用 `backend-agent/.venv/Scripts/python.exe` 的模拟状态脚本已验证：
+    - `move_complete` 会等到目标位置状态回传后结束
+    - `motion_complete` 会等到动作显示态退出后结束
+- 项目内确实存在动作结束回调链与原生 move 系统：
+  - `Display(..., EndAction)`
+  - `DisplayCEndtoNomal(...)`
+  - 原生 `walk/crawl/fall/climb` move graph
+- 当前 bridge 仍未把所有动作统一挂到原生完成回调上；这仍是后续可选增强，而不是本轮最小门控前提。
 
 ## 工作假设
 - 当前优先级已从“补移动/回传”切到“用后端编排层和更可观测状态继续打磨身体层协议”。
@@ -85,17 +188,24 @@
 - 当前 `.explore/desktop-pet-vpet-body-bridge/` 将作为新的 mission 真相源，旧 `.codex/explore/desktop-pet-vpet-body-bridge/` 仅保留为 legacy 参考。
 
 ## 待解决的问题
-- 现有状态字段是否已经足够支撑第一阶段联调，还是还要继续补 `topmost / hitthrough` 一类桌宠工作态。
-- `move.intent` 的运行时薄兼容要保留多久，是否下一轮就从手动联调 UI 中进一步隐藏。
+- `move.intent` 的运行时薄兼容要保留多久，是否下一轮直接退到纯文档兼容。
+- 是否需要再补一个更强的事件关联字段，例如 `event_id / sequence_name`，以便把长链路时间线和后端编排一一对上。
 - `emotion -> graph` 是否需要继续做运行时导出，而不是只靠人工映射。
+- 真实 VPet 上新的 `move_complete / motion_complete` 是否已经把两条核心 sequence 的重合感压到可接受范围。
+- 新的 `style=smart` 是否已经让移动体感从“生硬纯移动”收口到“短距可接受、长距不拖沓”。
+- 是否要把完成门控继续扩到更多步骤，例如 `bubble.show` 生命周期或 `mode.switch(normal)` 恢复态。
+- 是否需要在第一阶段引入 `native_walk` 一类“由原生 move 系统独占移动权”的移动模式。
 
 ## 下一步
-- 在真实 VPet 运行态上继续采样 4 步 sequence/scenario 的状态时间线，而不只看后端事件顺序。
-- 判断当前状态集合是否已经足够，还是要再补少量桌宠运行态字段。
-- 决定 `move.intent` 是继续保留运行时薄兼容，还是进入下一轮彻底退到文档兼容。
+- 在真实 VPet 上最小复测两条核心 sequence，优先观察新的 `wait_for` 门控是否已经把“上一步没做完就进下一步”压下去。
+- 继续用 `/dev/quick-test` 保存新的真实结果回写，不再走口头转述。
+- 最小复测三条 `window.move(style=smart)` 单测，确认移动体感是否仍可接受。
+- 决定 `move.intent` 是否从运行时也退场，只保留文档兼容说明。
+- 如果真实联调还需要更细的编排调试，优先考虑补事件关联字段，而不是继续扩桌宠工作态。
+- 如果 `motion_complete` 仍不够稳，再讨论是否需要把桥接层动作完成信号更直接接到原生回调，或引入 `native_walk`。
 
 ## 最新 handoff
-- [2026-03-28-008-sleep-resume-ready.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-28-008-sleep-resume-ready.md)
+- [2026-03-29-012-sleep-handoff-after-sequence-gating.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-29-012-sleep-handoff-after-sequence-gating.md)
 
 ## 最小活跃上下文摘要
-- 当前重点已经收敛到：在标准 18787 链路可稳定拉起的前提下，继续用 4 步 sequence/scenario 和扩展状态快照打磨第一阶段身体层编排，而不是再回头处理启动脚本残留问题。
+- 当前重点已经收敛到：最小 `wait_for` 门控已经落地，下一步是用真实 VPet 复测两条核心 sequence，判断它是否已经解决“动作没做完就进下一步”，再决定是否还要下探到原生回调或 `native_walk`。

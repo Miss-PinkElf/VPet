@@ -152,6 +152,7 @@
 兼容层：
 
 - 插件仍暂时接受 `move.intent`
+- `/dev/control` 联调页已不再暴露 `move.intent`，避免继续把它当作第一阶段主验证路径
 - 当前只保留 `dock_left / dock_right / dock_top / dock_bottom` 这类可明确收敛到边界位移的 intent
 - `follow_cursor` 这类需要更深交互语义的 intent 不再作为第一阶段承诺能力
 
@@ -173,11 +174,13 @@
 - `work_type`
 - `bubble_visible`
 - `last_event_type`
+- `last_event_at`
 
 说明：
 
 - `left / top / right / bottom` 都是按当前 `ZoomRatio` 归一化后的逻辑距离，便于直接和 `window.move(dx, dy)` 或边界吸附结果对比
 - `display_animat` 和 `bubble_visible` 用来判断“事件已消费”和“视觉状态真正切换”之间的时间差
+- `last_event_at` 用来区分“最近一次事件被插件消费的时刻”和“当前这份状态何时被回传”
 - `working_state / work_name / work_type` 是第一阶段里够用但不深改 `GameCore` 的工作态补充
 - 当前测试页会展示最新一份状态快照，用来验证 `window.move`、动作切换和组合场景的实际效果
 

@@ -1,0 +1,327 @@
+{
+  "phase": "phase-1-front-end-contract-validation",
+  "purpose": "当前阶段测试重点是验证 VPet 作为前端执行层时，第一阶段正式协议是否已经足够稳定可调用。",
+  "watch_fields": [
+    "left",
+    "top",
+    "right",
+    "bottom",
+    "display_name",
+    "display_animat",
+    "bubble_visible",
+    "last_event_type",
+    "last_event_at"
+  ],
+  "notes": [
+    "优先比较事件触发后的短时间窗口状态变化，不要用长时间窗口混入 VPet 自主移动噪声。",
+    "当前阶段重点不是再补更多工作态字段，而是确认正式协议和时间线观测是否够用。",
+    "如果某条 4 步 sequence 要重复验证，建议手动连续点 2 到 3 次，观察体感和状态是否一致。"
+  ],
+  "tests": [
+    {
+      "id": "move-right-120",
+      "category": "single-event",
+      "title": "右移 120",
+      "description": "验证显式 window.move 向右位移。",
+      "goal": "确认正式移动协议 window.move(dx, dy) 可稳定驱动前端位移。",
+      "pass_criteria": [
+        "left 增加",
+        "right 相应减少",
+        "last_event_type=window.move"
+      ],
+      "payload": {
+        "type": "window.move",
+        "dx": 120,
+        "dy": 0,
+        "style": "smart"
+      },
+      "result": {
+        "status": "mixed",
+        "note": "纯移动不带任何动作",
+        "updated_at": "2026-03-28T13:46:36.328Z"
+      }
+    },
+    {
+      "id": "move-left-120",
+      "category": "single-event",
+      "title": "左移 120",
+      "description": "验证显式 window.move 向左位移。",
+      "goal": "确认负向位移的方向和增量正确。",
+      "pass_criteria": [
+        "left 减少",
+        "right 相应增加",
+        "last_event_type=window.move"
+      ],
+      "payload": {
+        "type": "window.move",
+        "dx": -120,
+        "dy": 0,
+        "style": "smart"
+      },
+      "result": {
+        "status": "mixed",
+        "note": "纯移动不带任何动作",
+        "updated_at": "2026-03-28T13:46:33.580Z"
+      }
+    },
+    {
+      "id": "move-diagonal",
+      "category": "single-event",
+      "title": "斜向位移",
+      "description": "验证 window.move 的水平和垂直增量同时生效。",
+      "goal": "确认 dx 和 dy 能同时稳定作用。",
+      "pass_criteria": [
+        "left/top 同时发生预期方向变化",
+        "last_event_type=window.move"
+      ],
+      "payload": {
+        "type": "window.move",
+        "dx": 90,
+        "dy": -20,
+        "style": "smart"
+      },
+      "result": {
+        "status": "mixed",
+        "note": "纯移动不带任何动作",
+        "updated_at": "2026-03-28T13:46:27.314Z"
+      }
+    },
+    {
+      "id": "bubble-plain",
+      "category": "single-event",
+      "title": "普通说话",
+      "description": "验证基础 bubble.show。",
+      "goal": "确认前端能稳定显示文本气泡。",
+      "pass_criteria": [
+        "气泡出现",
+        "文本正确",
+        "last_event_type=bubble.show"
+      ],
+      "payload": {
+        "type": "bubble.show",
+        "text": "这是当前阶段的普通说话测试。",
+        "duration_ms": 5000
+      },
+      "result": {
+        "status": "pass",
+        "note": "",
+        "updated_at": "2026-03-28T13:35:10.549Z"
+      }
+    },
+    {
+      "id": "bubble-think-graph",
+      "category": "single-event",
+      "title": "思考说话",
+      "description": "验证 bubble.show 搭配 think graph。",
+      "goal": "确认说话时可稳定挂接当前承诺 graph。",
+      "pass_criteria": [
+        "显示切入 think 相关视觉",
+        "气泡出现",
+        "last_event_type=bubble.show"
+      ],
+      "payload": {
+        "type": "bubble.show",
+        "text": "我先想一下，再回答你。",
+        "duration_ms": 5000,
+        "graph": "think"
+      },
+      "result": {
+        "status": "pass",
+        "note": "",
+        "updated_at": "2026-03-28T13:35:23.879Z"
+      }
+    },
+    {
+      "id": "motion-touch-head",
+      "category": "single-event",
+      "title": "摸头动作",
+      "description": "验证单独动作入口 touch_head。",
+      "goal": "确认 motion.play 的独立动作路径稳定。",
+      "pass_criteria": [
+        "display_name 落到 touch_head 或对应动作",
+        "last_event_type=motion.play"
+      ],
+      "payload": {
+        "type": "motion.play",
+        "motion": "touch_head",
+        "priority": 50
+      },
+      "result": {
+        "status": "pass",
+        "note": "",
+        "updated_at": "2026-03-28T13:35:32.422Z"
+      }
+    },
+    {
+      "id": "motion-touch-body",
+      "category": "single-event",
+      "title": "摸身体动作",
+      "description": "验证单独动作入口 touch_body。",
+      "goal": "确认第二个核心交互动作也稳定可用。",
+      "pass_criteria": [
+        "动作触发明显",
+        "last_event_type=motion.play"
+      ],
+      "payload": {
+        "type": "motion.play",
+        "motion": "touch_body",
+        "priority": 50
+      },
+      "result": {
+        "status": "pass",
+        "note": "",
+        "updated_at": "2026-03-28T13:35:46.661Z"
+      }
+    },
+    {
+      "id": "mode-thinking",
+      "category": "single-event",
+      "title": "切入 thinking",
+      "description": "验证 mode.switch(thinking)。",
+      "goal": "确认高层 mode 切换成立。",
+      "pass_criteria": [
+        "display_name/display_animat 进入 think 态",
+        "last_event_type=mode.switch"
+      ],
+      "payload": {
+        "type": "mode.switch",
+        "mode": "thinking"
+      },
+      "result": {
+        "status": "pass",
+        "note": "",
+        "updated_at": "2026-03-28T13:35:52.024Z"
+      }
+    },
+    {
+      "id": "mode-normal",
+      "category": "single-event",
+      "title": "恢复 normal",
+      "description": "验证 mode.switch(normal)。",
+      "goal": "确认能从思考态或动作态回归默认态。",
+      "pass_criteria": [
+        "显示回到默认态",
+        "last_event_type=mode.switch"
+      ],
+      "payload": {
+        "type": "mode.switch",
+        "mode": "normal"
+      },
+      "result": {
+        "status": "pass",
+        "note": "",
+        "updated_at": "2026-03-28T13:35:56.534Z"
+      }
+    },
+    {
+      "id": "sequence-thinking-walk-think",
+      "category": "sequence",
+      "title": "思考 -> 移动 -> 说话 -> 恢复",
+      "description": "当前阶段第一条核心 4 步长链路。",
+      "goal": "确认后端编排 -> 前端执行 -> 状态回传这一整条链路可解释。",
+      "pass_criteria": [
+        "时间线能读出 mode.switch -> window.move -> bubble.show -> mode.switch",
+        "last_event_at 可区分事件消费时间",
+        "整体体感稳定"
+      ],
+      "payload": {
+        "name": "thinking-walk-speak-normal",
+        "steps": [
+          {
+            "event": {
+              "type": "mode.switch",
+              "mode": "thinking"
+            }
+          },
+          {
+            "event": {
+              "type": "window.move",
+              "dx": 90,
+              "dy": -20,
+              "style": "smart"
+            },
+            "wait_for": "move_complete",
+            "wait_timeout_ms": 5000,
+            "settle_ms": 120
+          },
+          {
+            "event": {
+              "type": "bubble.show",
+              "text": "我先想一下，再边移动边回答。",
+              "duration_ms": 5000,
+              "graph": "think"
+            }
+          },
+          {
+            "event": {
+              "type": "mode.switch",
+              "mode": "normal"
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "mixed",
+        "note": "确实做了，但是有点快，有点重合了",
+        "updated_at": "2026-03-28T13:47:28.558Z"
+      }
+    },
+    {
+      "id": "sequence-bubble-move-touch-recover",
+      "category": "sequence",
+      "title": "说话 -> 移动 -> 摸头 -> 恢复",
+      "description": "当前阶段第二条核心 4 步长链路。",
+      "goal": "确认 bubble / move / motion 的组合链路稳定。",
+      "pass_criteria": [
+        "时间线能读出 bubble.show -> window.move -> motion.play -> mode.switch",
+        "touch_head 能真实落到 display_name",
+        "整体体感稳定"
+      ],
+      "payload": {
+        "name": "bubble-move-touch-recover",
+        "steps": [
+          {
+            "event": {
+              "type": "bubble.show",
+              "text": "这次我连续做四步给你看。",
+              "duration_ms": 5000,
+              "expression": "shy"
+            }
+          },
+          {
+            "event": {
+              "type": "window.move",
+              "dx": -110,
+              "dy": 20,
+              "style": "smart"
+            },
+            "wait_for": "move_complete",
+            "wait_timeout_ms": 5000,
+            "settle_ms": 120
+          },
+          {
+            "event": {
+              "type": "motion.play",
+              "motion": "touch_head",
+              "priority": 55
+            },
+            "wait_for": "motion_complete",
+            "wait_timeout_ms": 6000,
+            "settle_ms": 120
+          },
+          {
+            "event": {
+              "type": "mode.switch",
+              "mode": "normal"
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "mixed",
+        "note": "确实做了，但是有点快，有点重合了",
+        "updated_at": "2026-03-28T13:47:43.071Z"
+      }
+    }
+  ]
+}

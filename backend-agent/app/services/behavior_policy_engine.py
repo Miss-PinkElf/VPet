@@ -62,6 +62,11 @@ class BehaviorPolicyEngine:
             return MoveIntentEvent(intent=request.intent.strip(), source=source)
 
         if request.type == 'window.move':
-            return WindowMoveEvent(dx=request.dx, dy=request.dy, source=source)
+            return WindowMoveEvent(
+                dx=request.dx,
+                dy=request.dy,
+                style=(request.style.strip() if request.style and request.style.strip() else None),
+                source=source,
+            )
 
         raise HTTPException(status_code=422, detail='不支持的事件类型。')

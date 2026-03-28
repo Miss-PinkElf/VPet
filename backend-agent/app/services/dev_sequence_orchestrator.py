@@ -1,5 +1,6 @@
 import asyncio
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from fastapi import HTTPException
 
@@ -9,10 +10,14 @@ from ..schemas.events import (
     DevSequenceDispatchResponse,
     DevSequenceRequest,
     DevSequenceStepRequest,
+    MotionPlayEvent,
     PetEvent,
+    VPetStateSnapshot,
+    WindowMoveEvent,
 )
 from .behavior_policy_engine import BehaviorPolicyEngine
 from .event_bus import EventBus
+from .vpet_state_store import VPetStateStore
 
 
 @dataclass(frozen=True)
@@ -21,10 +26,25 @@ class DevScenarioDefinition:
     request: DevSequenceRequest
 
 
+@dataclass(frozen=True)
+class PreparedSequenceStep:
+    delay_ms: int
+    event: PetEvent
+    wait_for: str | None
+    wait_timeout_ms: int
+    settle_ms: int
+
+
 class DevSequenceOrchestrator:
-    def __init__(self, event_bus: EventBus, behavior_policy_engine: BehaviorPolicyEngine) -> None:
+    def __init__(
+        self,
+        event_bus: EventBus,
+        behavior_policy_engine: BehaviorPolicyEngine,
+        vpet_state_store: VPetStateStore,
+    ) -> None:
         self._event_bus = event_bus
         self._behavior_policy_engine = behavior_policy_engine
+        self._vpet_state_store = vpet_state_store
         self._active_tasks: set[asyncio.Task[None]] = set()
         self._scenario_catalog = self._build_scenario_catalog()
 
@@ -63,9 +83,9 @@ class DevSequenceOrchestrator:
                 steps=[
                     DevSequenceStepRequest(
                         event=DevEventRequest(type='window.move', dx=120, dy=-20),
+                        wait_for='move_complete',
                     ),
                     DevSequenceStepRequest(
-                        delay_ms=450,
                         event=DevEventRequest(
                             type='bubble.show',
                             text='我先挪一下再说。',
@@ -91,8 +111,8 @@ class DevSequenceOrchestrator:
                         ),
                     ),
                     DevSequenceStepRequest(
-                        delay_ms=280,
                         event=DevEventRequest(type='window.move', dx=-120, dy=20),
+                        wait_for='move_complete',
                     ),
                 ],
             ),
@@ -103,9 +123,9 @@ class DevSequenceOrchestrator:
                 steps=[
                     DevSequenceStepRequest(
                         event=DevEventRequest(type='window.move', dx=140, dy=0),
+                        wait_for='move_complete',
                     ),
                     DevSequenceStepRequest(
-                        delay_ms=280,
                         event=DevEventRequest(type='motion.play', motion='touch_head', priority=50),
                     ),
                 ],
@@ -117,9 +137,9 @@ class DevSequenceOrchestrator:
                 steps=[
                     DevSequenceStepRequest(
                         event=DevEventRequest(type='window.move', dx=-120, dy=0),
+                        wait_for='move_complete',
                     ),
                     DevSequenceStepRequest(
-                        delay_ms=450,
                         event=DevEventRequest(
                             type='bubble.show',
                             text='move then touch bubble',
@@ -139,11 +159,12 @@ class DevSequenceOrchestrator:
                         event=DevEventRequest(type='mode.switch', mode='thinking'),
                     ),
                     DevSequenceStepRequest(
-                        delay_ms=420,
                         event=DevEventRequest(type='window.move', dx=90, dy=-20),
+                        wait_for='move_complete',
+                        wait_timeout_ms=5000,
+                        settle_ms=120,
                     ),
                     DevSequenceStepRequest(
-                        delay_ms=480,
                         event=DevEventRequest(
                             type='bubble.show',
                             text='我先想一下，再边移动边回答。',
@@ -153,7 +174,6 @@ class DevSequenceOrchestrator:
                         ),
                     ),
                     DevSequenceStepRequest(
-                        delay_ms=520,
                         event=DevEventRequest(type='mode.switch', mode='normal'),
                     ),
                 ],
@@ -172,15 +192,18 @@ class DevSequenceOrchestrator:
                         ),
                     ),
                     DevSequenceStepRequest(
-                        delay_ms=300,
                         event=DevEventRequest(type='window.move', dx=-110, dy=20),
+                        wait_for='move_complete',
+                        wait_timeout_ms=5000,
+                        settle_ms=120,
                     ),
                     DevSequenceStepRequest(
-                        delay_ms=320,
                         event=DevEventRequest(type='motion.play', motion='touch_head', priority=55),
+                        wait_for='motion_complete',
+                        wait_timeout_ms=6000,
+                        settle_ms=120,
                     ),
                     DevSequenceStepRequest(
-                        delay_ms=650,
                         event=DevEventRequest(type='mode.switch', mode='normal'),
                     ),
                 ],
@@ -209,20 +232,185 @@ class DevSequenceOrchestrator:
             ),
         )
 
-    def _prepare_steps(self, steps: list[DevSequenceStepRequest], source: str) -> list[tuple[int, PetEvent]]:
-        prepared_steps: list[tuple[int, PetEvent]] = []
+    def _prepare_steps(self, steps: list[DevSequenceStepRequest], source: str) -> list[PreparedSequenceStep]:
+        prepared_steps: list[PreparedSequenceStep] = []
         for step in steps:
             event = self._behavior_policy_engine.build_manual_event(step.event, source=source)
-            prepared_steps.append((step.delay_ms, event))
+            self._validate_wait_for(step, event)
+            prepared_steps.append(
+                PreparedSequenceStep(
+                    delay_ms=step.delay_ms,
+                    event=event,
+                    wait_for=step.wait_for,
+                    wait_timeout_ms=step.wait_timeout_ms,
+                    settle_ms=step.settle_ms,
+                )
+            )
         return prepared_steps
 
-    def _start_background_run(self, prepared_steps: list[tuple[int, PetEvent]]) -> None:
+    def _validate_wait_for(self, step: DevSequenceStepRequest, event: PetEvent) -> None:
+        if step.wait_for == 'move_complete' and not isinstance(event, WindowMoveEvent):
+            raise HTTPException(status_code=422, detail='wait_for=move_complete 只能用于 window.move。')
+        if step.wait_for == 'motion_complete' and not isinstance(event, MotionPlayEvent):
+            raise HTTPException(status_code=422, detail='wait_for=motion_complete 只能用于 motion.play。')
+
+    def _start_background_run(self, prepared_steps: list[PreparedSequenceStep]) -> None:
         task = asyncio.create_task(self._run_sequence(prepared_steps))
         self._active_tasks.add(task)
         task.add_done_callback(self._active_tasks.discard)
 
-    async def _run_sequence(self, prepared_steps: list[tuple[int, PetEvent]]) -> None:
-        for delay_ms, event in prepared_steps:
-            if delay_ms > 0:
-                await asyncio.sleep(delay_ms / 1000)
-            await self._event_bus.publish(event)
+    async def _run_sequence(self, prepared_steps: list[PreparedSequenceStep]) -> None:
+        for step in prepared_steps:
+            if step.delay_ms > 0:
+                await asyncio.sleep(step.delay_ms / 1000)
+
+            dispatched_at = datetime.now(timezone.utc)
+            baseline_state = self._vpet_state_store.get_latest()
+            await self._event_bus.publish(step.event)
+            await self._wait_for_step(step, baseline_state, dispatched_at)
+
+    async def _wait_for_step(
+        self,
+        step: PreparedSequenceStep,
+        baseline_state: VPetStateSnapshot | None,
+        dispatched_at: datetime,
+    ) -> None:
+        if not step.wait_for:
+            return
+
+        if step.wait_for == 'event_applied':
+            await self._wait_for_event_applied(
+                event_type=step.event.type,
+                dispatched_at=dispatched_at,
+                timeout_ms=step.wait_timeout_ms,
+            )
+        elif step.wait_for == 'move_complete':
+            await self._wait_for_move_complete(
+                event=step.event,
+                baseline_state=baseline_state,
+                dispatched_at=dispatched_at,
+                timeout_ms=step.wait_timeout_ms,
+            )
+        elif step.wait_for == 'motion_complete':
+            await self._wait_for_motion_complete(
+                event=step.event,
+                dispatched_at=dispatched_at,
+                timeout_ms=step.wait_timeout_ms,
+            )
+
+        if step.settle_ms > 0:
+            await asyncio.sleep(step.settle_ms / 1000)
+
+    async def _wait_for_event_applied(
+        self,
+        event_type: str,
+        dispatched_at: datetime,
+        timeout_ms: int,
+    ) -> VPetStateSnapshot:
+        def predicate(state: VPetStateSnapshot | None) -> bool:
+            return self._state_has_applied_event(state, event_type, dispatched_at)
+
+        return await self._poll_state(
+            predicate=predicate,
+            timeout_ms=timeout_ms,
+            error_detail=f'等待 {event_type} 被 VPet 消费超时。',
+        )
+
+    async def _wait_for_move_complete(
+        self,
+        event: PetEvent,
+        baseline_state: VPetStateSnapshot | None,
+        dispatched_at: datetime,
+        timeout_ms: int,
+    ) -> VPetStateSnapshot:
+        if not isinstance(event, WindowMoveEvent):
+            raise HTTPException(status_code=422, detail='move_complete 只能用于 window.move。')
+
+        tolerance = 1.5
+        expected_left = baseline_state.left + event.dx if baseline_state is not None else None
+        expected_top = baseline_state.top + event.dy if baseline_state is not None else None
+
+        def predicate(state: VPetStateSnapshot | None) -> bool:
+            if not self._state_has_applied_event(state, event.type, dispatched_at):
+                return False
+            if state is None or expected_left is None or expected_top is None:
+                return True
+            return (
+                abs(state.left - expected_left) <= tolerance
+                and abs(state.top - expected_top) <= tolerance
+            )
+
+        return await self._poll_state(
+            predicate=predicate,
+            timeout_ms=timeout_ms,
+            error_detail='等待 window.move 完成并落到目标位置超时。',
+        )
+
+    async def _wait_for_motion_complete(
+        self,
+        event: PetEvent,
+        dispatched_at: datetime,
+        timeout_ms: int,
+    ) -> VPetStateSnapshot:
+        if not isinstance(event, MotionPlayEvent):
+            raise HTTPException(status_code=422, detail='motion_complete 只能用于 motion.play。')
+
+        await self._wait_for_event_applied(
+            event_type=event.type,
+            dispatched_at=dispatched_at,
+            timeout_ms=timeout_ms,
+        )
+
+        motion_key = self._normalize_state_token(event.motion)
+        saw_motion_display = False
+
+        def predicate(state: VPetStateSnapshot | None) -> bool:
+            nonlocal saw_motion_display
+            if not self._state_has_applied_event(state, event.type, dispatched_at):
+                return False
+            if self._state_matches_motion(state, motion_key):
+                saw_motion_display = True
+                return False
+            return saw_motion_display
+
+        return await self._poll_state(
+            predicate=predicate,
+            timeout_ms=timeout_ms,
+            error_detail=f'等待 motion.play({event.motion}) 结束超时。',
+        )
+
+    async def _poll_state(self, predicate, timeout_ms: int, error_detail: str) -> VPetStateSnapshot:
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + (timeout_ms / 1000)
+        while True:
+            state = self._vpet_state_store.get_latest()
+            if predicate(state):
+                return state
+            if loop.time() >= deadline:
+                raise HTTPException(status_code=504, detail=error_detail)
+            await asyncio.sleep(0.05)
+
+    def _state_has_applied_event(
+        self,
+        state: VPetStateSnapshot | None,
+        event_type: str,
+        dispatched_at: datetime,
+    ) -> bool:
+        return (
+            state is not None
+            and state.last_event_type == event_type
+            and state.last_event_at is not None
+            and state.last_event_at >= dispatched_at
+        )
+
+    def _state_matches_motion(self, state: VPetStateSnapshot | None, motion_key: str) -> bool:
+        if state is None:
+            return False
+        display_name = self._normalize_state_token(state.display_name)
+        display_type = self._normalize_state_token(state.display_type)
+        return motion_key in {display_name, display_type}
+
+    def _normalize_state_token(self, value: str | None) -> str:
+        if not value:
+            return ''
+        return value.strip().lower().replace('-', '_').replace(' ', '_')

@@ -28,11 +28,12 @@ def create_app_services(settings: Settings) -> AppServices:
     memory_service = MemoryService(store=InMemoryStore())
     llm_service = LlmService(settings)
     behavior_policy_engine = BehaviorPolicyEngine()
+    vpet_state_store = VPetStateStore()
     dev_sequence_orchestrator = DevSequenceOrchestrator(
         event_bus=event_bus,
         behavior_policy_engine=behavior_policy_engine,
+        vpet_state_store=vpet_state_store,
     )
-    vpet_state_store = VPetStateStore()
     chat_orchestrator = ChatOrchestrator(
         settings=settings,
         llm_service=llm_service,

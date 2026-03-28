@@ -43,6 +43,7 @@ class WindowMoveEvent(BasePetEvent):
     type: Literal['window.move'] = 'window.move'
     dx: float = Field(default=0)
     dy: float = Field(default=0)
+    style: Optional[str] = Field(default=None, max_length=40)
 
 
 PetEvent = Union[
@@ -68,6 +69,7 @@ class DevEventRequest(BaseModel):
     intent: Optional[str] = Field(default=None, max_length=80)
     dx: float = Field(default=0)
     dy: float = Field(default=0)
+    style: Optional[str] = Field(default=None, max_length=40)
 
 
 class DevEventResponse(BaseModel):
@@ -78,6 +80,9 @@ class DevEventResponse(BaseModel):
 class DevSequenceStepRequest(BaseModel):
     delay_ms: int = Field(default=0, ge=0, le=20000)
     event: DevEventRequest
+    wait_for: Optional[Literal['event_applied', 'move_complete', 'motion_complete']] = None
+    wait_timeout_ms: int = Field(default=6000, ge=200, le=30000)
+    settle_ms: int = Field(default=0, ge=0, le=5000)
 
 
 class DevSequenceRequest(BaseModel):
@@ -122,6 +127,7 @@ class VPetStateSnapshot(BaseModel):
     work_type: Optional[str] = Field(default=None, max_length=80)
     bubble_visible: bool = False
     last_event_type: Optional[str] = Field(default=None, max_length=80)
+    last_event_at: Optional[datetime] = None
 
 
 class VPetStateResponse(BaseModel):

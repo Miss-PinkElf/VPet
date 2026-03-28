@@ -244,3 +244,400 @@
 
 ### 可以从活跃上下文中移除的内容
 - 这轮提交前的临时收尾动作
+
+## Checkpoint 8 - 2026-03-28 Timeline Observability + Legacy UI Demotion
+
+### 当前阶段
+- 阶段 3：真实 VPet 长链路时间线已完成一轮高频采样，开始收口“时间可观测性”和 `move.intent` 退场节奏
+
+### 本轮完成内容
+- 重新拉起真实 `18787` 链路，并在真实 VPet 上串行采样：
+  - `thinking-walk-think`
+  - `bubble-move-touch-recover`
+- 将 `start-vpet-bridge.ps1` 调整为默认注入更高频桥接参数：
+  - `VPET_AGENT_BRIDGE_INTERVAL_MS=250`
+  - `VPET_AGENT_BRIDGE_STATE_INTERVAL_MS=500`
+- 在插件状态快照与后端 schema 中新增 `last_event_at`
+- `/dev/control` 移除 `move.intent` 手动入口，只保留 `window.move`
+- 更新迁移映射文档，明确新的状态字段与 legacy 退场位置
+
+### 本轮决策与原因
+- 决策：当前不再补 `topmost / hitthrough` 一类桌宠工作态字段
+- 原因：真实采样显示 `left / top / right / bottom + display_animat + bubble_visible + last_event_type/at` 已足够支撑第一阶段联调判断
+- 决策：`move.intent` 从联调 UI 继续降级，但运行时暂不直接删除
+- 原因：当前已经明确不再是主路径，但保留薄兼容能降低历史调试脚本断裂成本
+- 决策：时间可观测性的优先级高于继续补工作态字段
+- 原因：本轮的主要盲点不在“状态有没有”，而在“何时消费事件、何时真正切画面”
+
+### 本轮沉淀经验
+- `last_event_at` 和状态 `timestamp` 分开后，能够明显区分“事件已消费”和“状态快照稍后才上报”
+- `bubble_visible` 更适合表达视觉残留，不适合单独拿来判断事件顺序
+- VPet 会在空闲时继续自主移动，所以长时间窗口采样容易混入自然位移；验证 `window.move` 应优先看事件触发后的短窗口
+- 对真实桌宠联调来说，默认更高频的 poll/state 回传比继续堆状态字段更有价值
+
+### 待解决问题
+- `move.intent` 是否下一轮彻底退到纯文档兼容
+- 是否要增加 `event_id / sequence_name` 级别的关联字段
+- `emotion -> graph` 是否继续做运行时导出
+
+### 下一步
+- 用当前高频链路继续验证更接近演示故事线的 sequence
+- 评估是否补事件关联字段
+- 决定 `move.intent` 的最终退场方式
+
+### 可以从活跃上下文中移除的内容
+- “还不确定是否必须补更多桌宠工作态字段” 这件事
+- “`move.intent` 仍然要保留在联调主界面里” 这件事
+
+## Checkpoint 9 - 2026-03-28 Quick Test JSON Catalog Page
+
+### 当前阶段
+- 阶段 3：在现有联调页基础上补一个更轻的 JSON 测试目录入口，方便按测试项快速触发
+
+### 本轮完成内容
+- 在 `backend-agent/app/api/routes/dev_control.py` 中新增 `/dev/quick-test`
+- quick test 页面支持：
+  - 读取数组或 `{ "tests": [...] }` 形式的 JSON
+  - 将每个测试项渲染成可点击卡片
+  - 自动识别 `payload` 是单事件还是 sequence
+  - 分别调用 `/api/dev/messages` 或 `/api/dev/sequences`
+- 在 `/dev/control` 顶部增加跳转到 `/dev/quick-test` 的入口
+- 重启标准 `18787` 链路，使新页面立即可用
+
+### 本轮决策与原因
+- 决策：quick test 单独成页，而不是继续往 `/dev/control` 里塞更多控件
+- 原因：`/dev/control` 已经承担完整联调功能，quick test 的目标只是快速读取一份测试目录 JSON 并一键执行
+- 决策：先让测试项显式带 `payload`
+- 原因：这样最简单、最稳定，也最接近你未来从自己后端直接发送的调用面
+
+### 本轮沉淀经验
+- 对当前阶段来说，“从 JSON 目录点一个测试直接发”比继续扩传统表单更贴近后端集成使用方式
+- quick test 页适合承载你自己的常用测试 catalog，而 `/dev/control` 保留为完整联调页
+
+### 待解决问题
+- 是否要给 quick test 再补“导入外部文件”而不是只粘贴 JSON
+- 是否要让 quick test 绑定一组更贴近真实后端业务的默认测试样例
+
+### 下一步
+- 用 quick test 维护一组标准测试 catalog
+- 继续用它验证第一阶段正式协议
+
+### 可以从活跃上下文中移除的内容
+- “每次都要在 `/dev/control` 手工改表单或改 sequence 文本” 这件事
+
+## Checkpoint 10 - 2026-03-28 Quick Test File-Backed Catalog
+
+### 当前阶段
+- 阶段 3：quick test 已从页面内置样例升级为 mission 文件托管的测试目录
+
+### 本轮完成内容
+- 将 quick test catalog 落盘到：
+  - `.explore/desktop-pet-vpet-body-bridge/quick-tests.json`
+- 新增后端接口：
+  - `GET /api/dev/quick-test/catalog`
+  - `PUT /api/dev/quick-test/catalog`
+- `/dev/quick-test` 现已支持：
+  - 启动时自动从 mission 文件读取测试目录
+  - 将编辑后的 JSON 保存回 mission 文件
+  - 再从文件重新加载并渲染测试卡片
+- 已验证读取、覆盖保存、恢复默认 catalog 整条链路可用
+
+### 本轮决策与原因
+- 决策：quick test catalog 放在 `.explore` 而不是继续内嵌在 HTML
+- 原因：这样测试目录本身也成为 mission 真相的一部分，便于迭代和续接
+- 决策：先用简单的整文件读写，而不是上更复杂的多文件管理
+- 原因：当前目标是方便维护测试目录，不是做完整测试平台
+
+### 本轮沉淀经验
+- 对当前阶段最实用的增强不是继续扩 quick test UI，而是让测试 catalog 可被持久化和版本化
+- `.explore/.../quick-tests.json` 比散落在页面源码里的默认 JSON 更适合逐步沉淀“你的后端真正会发什么”
+
+### 待解决问题
+- 是否要继续提供多个 catalog 文件，而不是只维护一个默认 quick test 文件
+- 是否要把真实业务链路样例也沉淀进该 catalog
+
+### 下一步
+- 继续把常用测试样例沉淀到 `quick-tests.json`
+- 用这些样例验证第一阶段正式协议是否已经足够
+
+### 可以从活跃上下文中移除的内容
+- “quick test 默认目录只能靠改 HTML 字符串维护” 这件事
+
+## Checkpoint 11 - 2026-03-28 Current Phase Test Catalog
+
+### 当前阶段
+- 阶段 3：当前阶段该测什么，已经从口头列表收口为 quick test catalog
+
+### 本轮完成内容
+- 将 `quick-tests.json` 扩成当前阶段测试目录
+- 明确写入：
+  - 当前阶段测试目的
+  - 建议观察字段
+  - 单事件测试项
+  - 两条核心 sequence 测试项
+  - 每条测试的通过标准
+
+### 本轮决策与原因
+- 决策：把“当前阶段要测什么”直接写进 quick test catalog，而不是只保留在聊天记录里
+- 原因：这样你可以直接在 `/dev/quick-test` 按测试项点，并把结果按同一套目录回传
+
+### 本轮沉淀经验
+- 对当前阶段最重要的不是再发散测试面，而是把该测项和通过标准固定下来
+- 把测试清单和测试入口绑定在一起，比单独维护一份文字清单更好执行
+
+### 待解决问题
+- 你跑完这套当前阶段测试后的实际结果如何
+- 哪些项是稳定通过，哪些项还有体感或时间线问题
+
+### 下一步
+- 由你按 `quick-tests.json` 逐项测试
+- 把实际观察结果回给我
+- 我再据此决定是否要继续收口协议或补最小改动
+
+### 可以从活跃上下文中移除的内容
+- “当前阶段到底要测哪些项” 这件事
+
+## Checkpoint 12 - 2026-03-28 Quick Test Result Writeback
+
+### 当前阶段
+- 阶段 3：quick test 已从“只负责触发测试”升级为“可直接记录并回写测试结果”
+
+### 本轮完成内容
+- 在 `/dev/quick-test` 新增“测试结果”编辑区
+- 页面现支持：
+  - 选择一个测试项
+  - 编辑结果状态
+  - 记录结果说明
+  - 点击 `Save Result` 回写到 `quick-tests.json`
+- 已验证：
+  - 页面包含结果编辑区与 `Save Result`
+  - API 写回后，再读取 `quick-tests.json` 能看到刚保存的结果
+
+### 本轮决策与原因
+- 决策：测试结果直接落回 `quick-tests.json`
+- 原因：这样你不需要再手动把结果转述给我，我后续直接读取 mission 文件即可
+
+### 本轮沉淀经验
+- 对当前阶段最省协作成本的做法，不是再加更多输入框，而是让测试入口和测试结果落在同一份 mission 文件里
+
+### 待解决问题
+- 等你实际跑完当前阶段测试后，各项结果是什么
+- 哪些测试项还需要调整为更贴近真实后端调用场景
+
+### 下一步
+- 由你直接在 `/dev/quick-test` 中执行并保存测试结果
+- 我下次直接读 `quick-tests.json` 就能继续判断
+
+### 可以从活跃上下文中移除的内容
+- “测试完还要再手工把结果打字发回来” 这件事
+
+## Checkpoint 13 - 2026-03-28 Move Instability Root Cause
+
+### 当前阶段
+- 阶段 3：通过 quick test 的真实结果回填，已定位移动不稳定的第一层根因
+
+### 本轮完成内容
+- 读取 `quick-tests.json` 中你保存的实际测试结果
+- 确认当前问题集中在：
+  - `window.move`
+  - 含移动的 sequence
+- 对照桥接层与原生 move graph 配置定位到根因：
+  - `window.move` 处理时同时调用 `DisplayMove()` 和 `MoveWindows(...)`
+  - 原生 `DisplayMove()` 会进入 `walk/crawl/fall/climb` 图并带自身运动语义
+- 已修正 `AgentBridgePoller`：
+  - `window.move` 改为纯位移
+  - `move.intent` 也去掉 `DisplayMove()`
+- 已通过标准启动链路重新编译并重启 VPet
+
+### 本轮决策与原因
+- 决策：显式 `window.move` 不再附带原生移动动作
+- 原因：第一阶段里“移动能力”应是可控位移协议，不应再叠加 VPet 自身带方向/速度语义的运动图
+
+### 本轮沉淀经验
+- 对“身体层前端”来说，物理位移和视觉动作要分层控制；把二者绑死会直接破坏可预测性
+- quick test 结果回写已经足够暴露“说话/动作都稳，只有移动有系统性问题”这种结构性结论
+
+### 待解决问题
+- 去掉 `DisplayMove()` 后，移动是否已经稳定
+- 若 sequence 仍乱，是否还需要调整移动步与后续 bubble/motion 的间隔
+
+### 下一步
+- 优先复测所有含移动的测试项
+- 如果单独移动稳定了，再看 sequence 是否仍需要微调 delay
+
+### 可以从活跃上下文中移除的内容
+- “移动不稳定可能只是观测问题” 这件事
+
+## Checkpoint 14 - 2026-03-28 Sequence Delay Relaxation
+
+### 当前阶段
+- 阶段 3：移动协议问题已基本排除，继续收口 sequence 节奏重合
+
+### 本轮完成内容
+- 读取第二轮 quick test 结果，确认：
+  - 单独 `window.move` 已变成纯移动
+  - 两条长链路 sequence 仍偏快、动作重合
+- 调整 `DevSequenceOrchestrator` 中两条核心场景的 delay
+- 同步调整：
+  - `quick-tests.json`
+  - `/dev/control` 默认 sequence 示例
+- 重启标准链路，使新的 delay 立即生效
+
+### 本轮决策与原因
+- 决策：当前继续调节 delay，而不是再修改正式协议
+- 原因：问题已经从“协议语义错”收口到“编排节奏太紧”
+
+### 本轮沉淀经验
+- 当单事件能力已经稳定、sequence 只剩重合感问题时，最有效的修正是拉开步间延迟，而不是继续扩状态或扩协议
+
+### 待解决问题
+- 新 delay 下，两条核心 sequence 是否已经达到可接受体感
+
+### 下一步
+- 只复测两条核心 sequence
+- 若仍有轻微重合，再做小幅 delay 微调
+
+### 可以从活跃上下文中移除的内容
+- “是否还要继续改 window.move 语义” 这件事
+
+## Checkpoint 15 - 2026-03-28 Smart Move Style
+
+### 当前阶段
+- 阶段 3：在移动协议已稳定的基础上，继续收口移动体感
+
+### 本轮完成内容
+- 根据你的反馈，将 `window.move` 从“纯瞬移语义”扩成带 style 的移动语义
+- 后端 schema 新增：
+  - `window.move.style`
+- 当前支持的 style：
+  - `smart`
+  - `smooth` / `walk`
+  - `snap` / `teleport`
+- 默认策略：
+  - 短距离：平滑分步走位
+  - 长距离：直接跳位
+- 将当前阶段 quick test 中的移动相关测试统一切到 `style=smart`
+- 重新编译并重启标准链路
+
+### 本轮决策与原因
+- 决策：先做“短距平滑、长距跳位”，暂不承诺“开门闪现”专项视觉
+- 原因：当前仓库里没有稳定确认可复用的开门/闪现 graph；先保证行为体感可靠，比临时硬接不稳定视觉更重要
+
+### 本轮沉淀经验
+- 当前阶段移动体感的关键不是单纯“有没有移动”，而是：
+  - 短距不要生硬
+  - 长距不要拖沓
+- 这类问题更适合用 style 和默认策略解决，而不是继续把单一 `window.move` 绑定成某一种固定表现
+
+### 待解决问题
+- `style=smart` 是否已经达到可接受体感
+- 两条 sequence 在新 style + 新 delay 下是否还会重合
+
+### 下一步
+- 最小复测：
+  - 三条移动单测
+  - 两条核心 sequence
+- 如果仍有轻微问题，再只做小幅参数微调
+
+### 可以从活跃上下文中移除的内容
+- “移动只能是纯瞬移” 这件事
+
+## Checkpoint 16 - 2026-03-28 Sequence Wait-For Gating
+
+### 当前阶段
+- 阶段 3：不再继续猜 delay，已把关键 sequence 步骤升级到显式完成门控
+
+### 本轮完成内容
+- 在 `backend-agent/app/schemas/events.py` 为 sequence step 新增：
+  - `wait_for`
+  - `wait_timeout_ms`
+  - `settle_ms`
+- 在 `DevSequenceOrchestrator` 中落地基于状态回传的最小门控：
+  - `event_applied`
+  - `move_complete`
+  - `motion_complete`
+- 将两条核心长链路切到新的门控语义：
+  - `thinking-walk-think`：`window.move -> wait_for=move_complete`
+  - `bubble-move-touch-recover`：
+    - `window.move -> wait_for=move_complete`
+    - `motion.play(touch_head) -> wait_for=motion_complete`
+- 同步更新：
+  - `/dev/control` 默认 sequence 示例
+  - `.explore/desktop-pet-vpet-body-bridge/quick-tests.json`
+  - `.explore/desktop-pet-vpet-body-bridge/spec/protocol-phase1.md`
+- 完成最小验证：
+  - `python -m compileall backend-agent/app` 通过
+  - 使用 `backend-agent/.venv/Scripts/python.exe` 的模拟状态脚本验证两种核心门控可放行
+
+### 本轮决策与原因
+- 决策：本轮先用后端状态门控收口 sequence，而不是立即深改插件或 `GameCore`
+- 原因：当前 `window.move` 的真正痛点是“后一步太早发出”，而现有状态回传已经足够支撑最小闭环
+- 决策：优先支持 `move_complete` 和 `motion_complete`
+- 原因：这两类正好覆盖当前两条核心 sequence 中最容易重合的关键步骤
+
+### 本轮沉淀经验
+- `window.move` 这类由桥接显式控制的步骤，不需要额外猜 delay；只要等待 `last_event_at` 更新并核对 `left/top` 落点即可形成稳定门控
+- 对短动作，先通过 `display_name/display_type` 进入并退出目标动作态做最小完成判断，已经比固定延迟稳得多
+- 当前阶段更该优先做“关键步显式等待”，而不是继续全局拉大每一步 delay
+
+### 待解决问题
+- 真实 VPet 上新的 `move_complete / motion_complete` 是否已经把体感重合压到可接受范围
+- `motion_complete` 对更多动作是否同样稳定，还是目前只应先用于 `touch_head/touch_body/pinch`
+- 是否还需要补 `event_id / sequence_name` 级别的关联字段
+- 是否最终需要 `native_walk` 一类由原生 move 系统独占移动权的模式
+
+### 下一步
+- 用真实 VPet 最小复测两条核心 sequence
+- 将新的真实结果继续回写到 `quick-tests.json`
+- 根据复测结果决定：
+  - 当前门控是否已足够
+  - 还是要进一步下探到原生动作完成回调或 `native_walk`
+
+### 可以从活跃上下文中移除的内容
+- “下一轮还只是继续猜 delay” 这件事
+- “sequence 完成门控还完全没实现” 这件事
+
+## Checkpoint 17 - 2026-03-29 Sleep Handoff After Sequence Gating
+
+### 当前阶段
+- 阶段 3：最小 `wait_for` 门控已落地，准备暂停并把明早恢复入口压到最低成本
+
+### 本轮完成内容
+- 复查 `.explore` 与实现文件，确认本轮“sequence 完成门控”已有：
+  - `state.md`
+  - `checkpoints.md`
+  - `protocol-phase1.md`
+  - `quick-tests.json`
+  - `handoff`
+- 继续补齐此前还没明确写入的 spec 记录：
+  - `proposal.md`
+  - `design.md`
+  - `tasks.md`
+- 新增睡前 handoff：
+  - `2026-03-29-012-sleep-handoff-after-sequence-gating.md`
+- 新增明早可直接复制的恢复提示词：
+  - `next-chat-prompt-2026-03-29-sequence-gating-retest.md`
+
+### 本轮决策与原因
+- 决策：睡前不再继续扩实现，先把恢复入口和文档收口
+- 原因：当前主要风险已经不是“门控还没做”，而是明早恢复时是否还会丢上下文或重复分析
+
+### 本轮沉淀经验
+- 对这种跨多轮的桥接任务，真正省成本的不是多记一段聊天总结，而是把：
+  - 最新 handoff
+  - 最新 state
+  - 明早可直接复制的 prompt
+  一起落到 mission 目录
+
+### 待解决问题
+- 真实 VPet 上新的 `wait_for` 门控是否已经让两条核心 sequence 收口
+- `motion_complete` 是否需要进一步下探到原生回调
+- 是否最终需要 `native_walk`
+
+### 下一步
+- 明早直接按新的 prompt 恢复
+- 最小复测两条核心 sequence 和三条移动单测
+- 继续把真实结果回写到 `quick-tests.json`
+
+### 可以从活跃上下文中移除的内容
+- 这轮文档补齐前的零散恢复说明

@@ -16,6 +16,10 @@ namespace VPet.Plugin.AgentBridge
     internal sealed class AgentBridgePoller : IDisposable
     {
         private const int DefaultBubbleMotionLeadMilliseconds = 420;
+        private const double SmartMoveSmoothDistanceThreshold = 160d;
+        private const int SmoothMoveMinimumSteps = 4;
+        private const int SmoothMoveMaximumSteps = 10;
+        private const int SmoothMoveStepDelayMilliseconds = 45;
 
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -28,6 +32,7 @@ namespace VPet.Plugin.AgentBridge
         private CancellationTokenSource cancellationTokenSource;
         private Task pollingTask;
         private DateTimeOffset lastStateReportedAt = DateTimeOffset.MinValue;
+        private DateTimeOffset? lastAppliedEventAt;
         private string lastAppliedEventType;
         private int started;
 
@@ -148,29 +153,35 @@ namespace VPet.Plugin.AgentBridge
             {
                 case "bubble.show":
                     await ShowBubbleAsync(bridgeEvent, cancellationToken);
-                    lastAppliedEventType = "bubble.show";
+                    RememberAppliedEvent("bubble.show");
                     break;
                 case "emotion.set":
                     await mainWindow.Dispatcher.InvokeAsync(() => ApplyExpressionEvent(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
-                    lastAppliedEventType = "emotion.set";
+                    RememberAppliedEvent("emotion.set");
                     break;
                 case "motion.play":
                     await mainWindow.Dispatcher.InvokeAsync(() => PlayMotion(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
-                    lastAppliedEventType = "motion.play";
+                    RememberAppliedEvent("motion.play");
                     break;
                 case "mode.switch":
                     await mainWindow.Dispatcher.InvokeAsync(() => SwitchMode(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
-                    lastAppliedEventType = "mode.switch";
+                    RememberAppliedEvent("mode.switch");
                     break;
                 case "window.move":
-                    await mainWindow.Dispatcher.InvokeAsync(() => MoveWindow(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
-                    lastAppliedEventType = "window.move";
+                    await MoveWindowAsync(bridgeEvent, cancellationToken);
+                    RememberAppliedEvent("window.move");
                     break;
                 case "move.intent":
                     await mainWindow.Dispatcher.InvokeAsync(() => MoveFromIntent(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
-                    lastAppliedEventType = "move.intent";
+                    RememberAppliedEvent("move.intent");
                     break;
             }
+        }
+
+        private void RememberAppliedEvent(string eventType)
+        {
+            lastAppliedEventType = eventType;
+            lastAppliedEventAt = DateTimeOffset.UtcNow;
         }
 
         private async Task ShowBubbleAsync(AgentBridgeEvent bridgeEvent, CancellationToken cancellationToken)
@@ -289,7 +300,7 @@ namespace VPet.Plugin.AgentBridge
             }
         }
 
-        private void MoveWindow(AgentBridgeEvent bridgeEvent)
+        private async Task MoveWindowAsync(AgentBridgeEvent bridgeEvent, CancellationToken cancellationToken)
         {
             var deltaX = bridgeEvent.Dx ?? 0d;
             var deltaY = bridgeEvent.Dy ?? 0d;
@@ -298,8 +309,47 @@ namespace VPet.Plugin.AgentBridge
                 return;
             }
 
-            mainWindow.Main?.DisplayMove();
-            mainWindow.Core?.Controller?.MoveWindows(deltaX, deltaY);
+            var style = ResolveMoveStyle(bridgeEvent.Style, deltaX, deltaY);
+            if (style == MoveStyle.Snap)
+            {
+                await mainWindow.Dispatcher.InvokeAsync(
+                    () => mainWindow.Core?.Controller?.MoveWindows(deltaX, deltaY),
+                    DispatcherPriority.Normal,
+                    cancellationToken);
+                return;
+            }
+
+            await SmoothMoveWindowAsync(deltaX, deltaY, cancellationToken);
+        }
+
+        private async Task SmoothMoveWindowAsync(double deltaX, double deltaY, CancellationToken cancellationToken)
+        {
+            var distance = Math.Max(Math.Abs(deltaX), Math.Abs(deltaY));
+            var steps = Math.Clamp((int)Math.Ceiling(distance / 24d), SmoothMoveMinimumSteps, SmoothMoveMaximumSteps);
+            var stepX = deltaX / steps;
+            var stepY = deltaY / steps;
+            var movedX = 0d;
+            var movedY = 0d;
+
+            for (var index = 0; index < steps; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var currentStepX = index == steps - 1 ? deltaX - movedX : stepX;
+                var currentStepY = index == steps - 1 ? deltaY - movedY : stepY;
+                movedX += currentStepX;
+                movedY += currentStepY;
+
+                await mainWindow.Dispatcher.InvokeAsync(
+                    () => mainWindow.Core?.Controller?.MoveWindows(currentStepX, currentStepY),
+                    DispatcherPriority.Normal,
+                    cancellationToken);
+
+                if (index < steps - 1)
+                {
+                    await Task.Delay(SmoothMoveStepDelayMilliseconds, cancellationToken);
+                }
+            }
         }
 
         private void MoveFromIntent(AgentBridgeEvent bridgeEvent)
@@ -327,8 +377,29 @@ namespace VPet.Plugin.AgentBridge
                 return;
             }
 
-            mainWindow.Main?.DisplayMove();
             controller.MoveWindows(deltaX, deltaY);
+        }
+
+        private MoveStyle ResolveMoveStyle(string requestedStyle, double deltaX, double deltaY)
+        {
+            var style = requestedStyle?.Trim().ToLowerInvariant();
+            if (style == "snap" || style == "teleport")
+            {
+                return MoveStyle.Snap;
+            }
+
+            if (style == "smooth" || style == "walk")
+            {
+                return MoveStyle.Smooth;
+            }
+
+            var distance = Math.Max(Math.Abs(deltaX), Math.Abs(deltaY));
+            if (distance > SmartMoveSmoothDistanceThreshold)
+            {
+                return MoveStyle.Snap;
+            }
+
+            return MoveStyle.Smooth;
         }
 
         private string ResolveGraphName(AgentBridgeEvent bridgeEvent)
@@ -503,8 +574,15 @@ namespace VPet.Plugin.AgentBridge
                 WorkName = mainWindow.Main?.NowWork?.Name,
                 WorkType = mainWindow.Main?.NowWork?.Type.ToString(),
                 BubbleVisible = mainWindow.Main?.MsgBar?.Visibility == System.Windows.Visibility.Visible,
-                LastEventType = lastAppliedEventType
+                LastEventType = lastAppliedEventType,
+                LastEventAt = lastAppliedEventAt
             };
+        }
+
+        private enum MoveStyle
+        {
+            Smooth,
+            Snap
         }
     }
 }

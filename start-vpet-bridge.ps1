@@ -18,6 +18,8 @@ $VPetModLink = Join-Path $RepoRoot "VPet-Simulator.Windows\bin\x64\Debug\net8.0-
 $VPetModTarget = Join-Path $RepoRoot "VPet-Simulator.Windows\mod"
 $BackendWindowTitle = "VPet Backend :$BackendPort"
 $VPetWindowTitle = "VPet Body :$BackendPort"
+$BridgePollIntervalMilliseconds = 250
+$BridgeStateReportIntervalMilliseconds = 500
 
 function Get-DotnetCommand {
     if (Get-Command dotnet -ErrorAction SilentlyContinue) {
@@ -240,6 +242,8 @@ function Start-Backend {
 function Start-VPet {
     Write-Host "[STEP] 启动 VPet" -ForegroundColor Yellow
     $env:VPET_AGENT_BRIDGE_URL = "http://$BackendHost`:$BackendPort/vpet/events/next"
+    $env:VPET_AGENT_BRIDGE_INTERVAL_MS = "$BridgePollIntervalMilliseconds"
+    $env:VPET_AGENT_BRIDGE_STATE_INTERVAL_MS = "$BridgeStateReportIntervalMilliseconds"
     Start-Process -FilePath $VPetExe -WorkingDirectory (Split-Path -Parent $VPetExe) | Out-Null
 }
 
