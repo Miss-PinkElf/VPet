@@ -126,5 +126,5 @@
 
 恢复时直接优先打开：
 
-1. `.explore/desktop-pet-vpet-body-bridge/next-chat-prompt-2026-03-29-sequence-gating-retest.md`
+1. `CONTINUE_VPET_BRIDGE_PROMPT.md`
 2. `.explore/desktop-pet-vpet-body-bridge/handoffs/2026-03-29-012-sleep-handoff-after-sequence-gating.md`
