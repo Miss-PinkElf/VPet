@@ -34,6 +34,9 @@ namespace VPet.Plugin.AgentBridge
         private DateTimeOffset lastStateReportedAt = DateTimeOffset.MinValue;
         private DateTimeOffset? lastAppliedEventAt;
         private string lastAppliedEventType;
+        private string lastAppliedEventId;
+        private string lastAppliedSequenceName;
+        private int? lastAppliedStepIndex;
         private int started;
 
         public AgentBridgePoller(IMainWindow mainWindow, AgentBridgeConfig config)
@@ -153,34 +156,37 @@ namespace VPet.Plugin.AgentBridge
             {
                 case "bubble.show":
                     await ShowBubbleAsync(bridgeEvent, cancellationToken);
-                    RememberAppliedEvent("bubble.show");
+                    RememberAppliedEvent("bubble.show", bridgeEvent);
                     break;
                 case "emotion.set":
                     await mainWindow.Dispatcher.InvokeAsync(() => ApplyExpressionEvent(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
-                    RememberAppliedEvent("emotion.set");
+                    RememberAppliedEvent("emotion.set", bridgeEvent);
                     break;
                 case "motion.play":
                     await mainWindow.Dispatcher.InvokeAsync(() => PlayMotion(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
-                    RememberAppliedEvent("motion.play");
+                    RememberAppliedEvent("motion.play", bridgeEvent);
                     break;
                 case "mode.switch":
                     await mainWindow.Dispatcher.InvokeAsync(() => SwitchMode(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
-                    RememberAppliedEvent("mode.switch");
+                    RememberAppliedEvent("mode.switch", bridgeEvent);
                     break;
                 case "window.move":
                     await MoveWindowAsync(bridgeEvent, cancellationToken);
-                    RememberAppliedEvent("window.move");
+                    RememberAppliedEvent("window.move", bridgeEvent);
                     break;
                 case "move.intent":
                     await mainWindow.Dispatcher.InvokeAsync(() => MoveFromIntent(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
-                    RememberAppliedEvent("move.intent");
+                    RememberAppliedEvent("move.intent", bridgeEvent);
                     break;
             }
         }
 
-        private void RememberAppliedEvent(string eventType)
+        private void RememberAppliedEvent(string eventType, AgentBridgeEvent bridgeEvent)
         {
             lastAppliedEventType = eventType;
+            lastAppliedEventId = bridgeEvent?.EventId;
+            lastAppliedSequenceName = bridgeEvent?.SequenceName;
+            lastAppliedStepIndex = bridgeEvent?.StepIndex;
             lastAppliedEventAt = DateTimeOffset.UtcNow;
         }
 
@@ -575,6 +581,9 @@ namespace VPet.Plugin.AgentBridge
                 WorkType = mainWindow.Main?.NowWork?.Type.ToString(),
                 BubbleVisible = mainWindow.Main?.MsgBar?.Visibility == System.Windows.Visibility.Visible,
                 LastEventType = lastAppliedEventType,
+                LastEventId = lastAppliedEventId,
+                LastSequenceName = lastAppliedSequenceName,
+                LastStepIndex = lastAppliedStepIndex,
                 LastEventAt = lastAppliedEventAt
             };
         }

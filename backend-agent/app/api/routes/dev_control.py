@@ -289,20 +289,31 @@ CONTROL_PAGE_HTML = """
       </section>
       <section class="sequence-panel">
         <h2>自定义 Sequence</h2>
-        <p>这里继续用于更长链路联调。`delay_ms` 表示该步执行前的等待时间；`wait_for` 可让该步在真正落稳后再进入下一步。当前最实用的门控是 `move_complete` 和 `motion_complete`。</p>
+        <p>这里继续用于更长链路联调。`delay_ms` 表示该步执行前的等待时间；`wait_for` 可让该步在真正落稳后再进入下一步。当前最实用的门控是 `event_applied`、`move_complete` 和 `motion_complete`。当一条 sequence 里出现两次 `bubble.show` 这类重复事件时，优先看状态里的 `last_event_id / last_sequence_name / last_step_index`。</p>
         <textarea id="sequence-editor">{
-  "name": "thinking-walk-speak-normal",
+  "name": "think-speak-move-touch-speak-recover",
   "steps": [
     {
       "event": {
         "type": "mode.switch",
         "mode": "thinking"
-      }
+      },
+      "wait_for": "event_applied"
+    },
+    {
+      "event": {
+        "type": "bubble.show",
+        "text": "我先想一下这件事。",
+        "duration_ms": 4000,
+        "expression": "thinking",
+        "graph": "think"
+      },
+      "wait_for": "event_applied"
     },
     {
       "event": {
         "type": "window.move",
-        "dx": 90,
+        "dx": 80,
         "dy": -20,
         "style": "smart"
       },
@@ -312,12 +323,23 @@ CONTROL_PAGE_HTML = """
     },
     {
       "event": {
+        "type": "motion.play",
+        "motion": "touch_head",
+        "priority": 55
+      },
+      "wait_for": "motion_complete",
+      "wait_timeout_ms": 6000,
+      "settle_ms": 120
+    },
+    {
+      "event": {
         "type": "bubble.show",
-        "text": "我先想一下，再边移动边回答。",
+        "text": "想好了，我继续说给你听。",
         "duration_ms": 5000,
         "expression": "thinking",
         "graph": "think"
-      }
+      },
+      "wait_for": "event_applied"
     },
     {
       "event": {
@@ -1177,6 +1199,7 @@ def _default_quick_test_catalog() -> dict[str, Any]:
                                 'type': 'mode.switch',
                                 'mode': 'thinking',
                             },
+                            'wait_for': 'event_applied',
                         },
                         {
                             'event': {
@@ -1196,6 +1219,70 @@ def _default_quick_test_catalog() -> dict[str, Any]:
                                 'duration_ms': 5000,
                                 'graph': 'think',
                             },
+                        },
+                        {
+                            'event': {
+                                'type': 'mode.switch',
+                                'mode': 'normal',
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                'id': 'think-speak-move-touch-speak-recover',
+                'title': '思考 -> 说话 -> 移动 -> 摸头 -> 再说话 -> 恢复',
+                'description': '验证更长的 6 步 sequence，并观察重复 bubble.show 的关联字段。',
+                'payload': {
+                    'name': 'think-speak-move-touch-speak-recover',
+                    'steps': [
+                        {
+                            'event': {
+                                'type': 'mode.switch',
+                                'mode': 'thinking',
+                            },
+                            'wait_for': 'event_applied',
+                        },
+                        {
+                            'event': {
+                                'type': 'bubble.show',
+                                'text': '我先想一下这件事。',
+                                'duration_ms': 4000,
+                                'expression': 'thinking',
+                                'graph': 'think',
+                            },
+                            'wait_for': 'event_applied',
+                        },
+                        {
+                            'event': {
+                                'type': 'window.move',
+                                'dx': 80,
+                                'dy': -20,
+                                'style': 'smart',
+                            },
+                            'wait_for': 'move_complete',
+                            'wait_timeout_ms': 5000,
+                            'settle_ms': 120,
+                        },
+                        {
+                            'event': {
+                                'type': 'motion.play',
+                                'motion': 'touch_head',
+                                'priority': 55,
+                            },
+                            'wait_for': 'motion_complete',
+                            'wait_timeout_ms': 6000,
+                            'settle_ms': 120,
+                        },
+                        {
+                            'event': {
+                                'type': 'bubble.show',
+                                'text': '想好了，我继续说给你听。',
+                                'duration_ms': 5000,
+                                'expression': 'thinking',
+                                'graph': 'think',
+                            },
+                            'wait_for': 'event_applied',
                         },
                         {
                             'event': {

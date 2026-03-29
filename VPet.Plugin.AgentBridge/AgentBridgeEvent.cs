@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace VPet.Plugin.AgentBridge
 {
     internal sealed class AgentBridgeEvent
@@ -17,6 +19,15 @@ namespace VPet.Plugin.AgentBridge
         public string Graph { get; set; }
 
         public string Mode { get; set; }
+
+        [JsonPropertyName("event_id")]
+        public string EventId { get; set; }
+
+        [JsonPropertyName("sequence_name")]
+        public string SequenceName { get; set; }
+
+        [JsonPropertyName("step_index")]
+        public int? StepIndex { get; set; }
 
         public string Style { get; set; }
 

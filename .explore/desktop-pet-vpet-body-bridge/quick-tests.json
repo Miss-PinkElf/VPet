@@ -10,12 +10,15 @@
     "display_animat",
     "bubble_visible",
     "last_event_type",
+    "last_event_id",
+    "last_sequence_name",
+    "last_step_index",
     "last_event_at"
   ],
   "notes": [
     "优先比较事件触发后的短时间窗口状态变化，不要用长时间窗口混入 VPet 自主移动噪声。",
     "当前阶段重点不是再补更多工作态字段，而是确认正式协议和时间线观测是否够用。",
-    "如果某条 4 步 sequence 要重复验证，建议手动连续点 2 到 3 次，观察体感和状态是否一致。"
+    "如果某条 sequence 含重复事件类型，例如两次 bubble.show，优先结合 last_event_id / last_sequence_name / last_step_index 观察是不是同一条步骤。"
   ],
   "tests": [
     {
@@ -36,9 +39,9 @@
         "style": "smart"
       },
       "result": {
-        "status": "mixed",
-        "note": "纯移动不带任何动作",
-        "updated_at": "2026-03-28T13:46:36.328Z"
+        "status": "pass",
+        "note": "2026-03-29 隔离复测通过：baseline=default，delta_left=120.0，delta_top=0.0，last_event_type=window.move。",
+        "updated_at": "2026-03-29T04:01:25.047595Z"
       }
     },
     {
@@ -59,9 +62,9 @@
         "style": "smart"
       },
       "result": {
-        "status": "mixed",
-        "note": "纯移动不带任何动作",
-        "updated_at": "2026-03-28T13:46:33.580Z"
+        "status": "pass",
+        "note": "2026-03-29 隔离复测通过：baseline=default，delta_left=-120.0，delta_top=0.0，last_event_type=window.move。",
+        "updated_at": "2026-03-29T04:02:00.629453Z"
       }
     },
     {
@@ -81,9 +84,9 @@
         "style": "smart"
       },
       "result": {
-        "status": "mixed",
-        "note": "纯移动不带任何动作",
-        "updated_at": "2026-03-28T13:46:27.314Z"
+        "status": "pass",
+        "note": "2026-03-29 隔离复测通过：baseline=default，delta_left=89.6，delta_top=-19.2，与 90/-20 目标只差 0.8 逻辑单位内。",
+        "updated_at": "2026-03-29T04:02:51.911777Z"
       }
     },
     {
@@ -231,7 +234,8 @@
             "event": {
               "type": "mode.switch",
               "mode": "thinking"
-            }
+            },
+            "wait_for": "event_applied"
           },
           {
             "event": {
@@ -261,9 +265,9 @@
         ]
       },
       "result": {
-        "status": "mixed",
-        "note": "确实做了，但是有点快，有点重合了",
-        "updated_at": "2026-03-28T13:47:28.558Z"
+        "status": "pass",
+        "note": "2026-03-29 隔离复测通过：mode.switch -> window.move -> bubble.show -> mode.switch 顺序正确；bubble.show 发生在 move 落点稳定之后。",
+        "updated_at": "2026-03-29T04:04:00.168305Z"
       }
     },
     {
@@ -286,7 +290,8 @@
               "text": "这次我连续做四步给你看。",
               "duration_ms": 5000,
               "expression": "shy"
-            }
+            },
+            "wait_for": "event_applied"
           },
           {
             "event": {
@@ -318,9 +323,85 @@
         ]
       },
       "result": {
-        "status": "mixed",
-        "note": "确实做了，但是有点快，有点重合了",
-        "updated_at": "2026-03-28T13:47:43.071Z"
+        "status": "pass",
+        "note": "2026-03-29 隔离复测通过：bubble.show -> window.move -> motion.play -> mode.switch 顺序正确；touch_head 走完 A_Start/B_Loop/C_End 并回到 default 后才进入 normal。bubble_visible 仍有视觉残留，但不再影响事件顺序。",
+        "updated_at": "2026-03-29T04:05:07.383207Z"
+      }
+    },
+    {
+      "id": "sequence-think-speak-move-touch-speak-recover",
+      "category": "sequence",
+      "title": "思考 -> 说话 -> 移动 -> 摸头 -> 再说话 -> 恢复",
+      "description": "新增的 6 步 story sequence，用于验证重复 bubble.show 时的事件关联字段。",
+      "goal": "确认后端能把更长链路的每一步和 VPet 实际消费事件一一对上，而不是只靠 last_event_type 猜测。",
+      "pass_criteria": [
+        "时间线能读出 mode.switch -> bubble.show -> window.move -> motion.play -> bubble.show -> mode.switch",
+        "第二次 bubble.show 能通过 last_event_id / last_step_index 与第一次明确区分",
+        "touch_head 完成后再进入第二次 bubble.show"
+      ],
+      "payload": {
+        "name": "think-speak-move-touch-speak-recover",
+        "steps": [
+          {
+            "event": {
+              "type": "mode.switch",
+              "mode": "thinking"
+            },
+            "wait_for": "event_applied"
+          },
+          {
+            "event": {
+              "type": "bubble.show",
+              "text": "我先想一下这件事。",
+              "duration_ms": 4000,
+              "expression": "thinking",
+              "graph": "think"
+            },
+            "wait_for": "event_applied"
+          },
+          {
+            "event": {
+              "type": "window.move",
+              "dx": 80,
+              "dy": -20,
+              "style": "smart"
+            },
+            "wait_for": "move_complete",
+            "wait_timeout_ms": 5000,
+            "settle_ms": 120
+          },
+          {
+            "event": {
+              "type": "motion.play",
+              "motion": "touch_head",
+              "priority": 55
+            },
+            "wait_for": "motion_complete",
+            "wait_timeout_ms": 6000,
+            "settle_ms": 120
+          },
+          {
+            "event": {
+              "type": "bubble.show",
+              "text": "想好了，我继续说给你听。",
+              "duration_ms": 5000,
+              "expression": "thinking",
+              "graph": "think"
+            },
+            "wait_for": "event_applied"
+          },
+          {
+            "event": {
+              "type": "mode.switch",
+              "mode": "normal"
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "untested",
+        "note": "",
+        "updated_at": null
       }
     }
   ]

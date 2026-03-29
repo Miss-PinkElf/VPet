@@ -69,3 +69,41 @@
 - **原因**：4 步已经足以验证第一阶段最重要的编排切换，又不会把协议复杂度推高到不可控。
 - **放弃的方案**：继续只保留 2 步场景，或立刻上更重的行为树/任务图。
 - **影响**：下一轮联调应优先围绕 `thinking-walk-think` 与 `bubble-move-touch-recover` 做真实状态采样。
+
+## [2026-03-28] 决策：显式 `window.move` 与 VPet 原生 move graph 彻底分层
+- **背景**：`window.move` 早期实现里同时调用了桥接显式位移和 `DisplayMove()`，把外部控制位移与 VPet 原生 `walk/crawl/fall/climb` 运动系统混在了一起。
+- **选择**：`window.move` 只保留桥接显式位移；原生 move graph 不再附带进入这条主路径。
+- **原因**：原生 move graph 带方向、速度、边界和触发条件，属于“桌宠自己的运动系统”，不能再被当成桥接层的普通过场动画随手叠加。
+- **放弃的方案**：继续让 `DisplayMove()` 跟着 `window.move` 一起触发，或继续靠调 delay 掩盖混用问题。
+- **影响**：phase 1 已建立“两类移动”的边界：
+  - 桥接位移：`window.move`
+  - 原生位移：保留给未来独占移动权模式，不再混入当前主协议
+
+## [2026-03-28] 决策：sequence 从“调 delay”切到“关键步完成门控”
+- **背景**：移动协议收口后，两条核心 sequence 的主要问题已经不再是“事件语义错”，而是“上一步没做完就进下一步”。
+- **选择**：在后端 sequence 层新增最小 `wait_for` 门控，优先支持：
+  - `event_applied`
+  - `move_complete`
+  - `motion_complete`
+- **原因**：当前已有状态回传已经足以支撑最小闭环，没有必要为了 phase 1 立即深改插件或 `GameCore`。
+- **放弃的方案**：继续主要依赖全局拉大 `delay_ms`，或直接跳到更重的原生回调体系。
+- **影响**：phase 1 的编排模式正式从“固定延迟驱动”升级为“关键步骤显式等待驱动”。
+
+## [2026-03-29] 决策：phase 1 暂不引入 `native_walk`，先把当前门控模式固化
+- **背景**：在“桥接位移”和“原生位移”分层之后，理论上可以继续增加 `native_walk` 一类由原生 move system 独占移动权的模式。
+- **选择**：当前先不实现 `native_walk`，优先把显式 `window.move` + `wait_for` 门控这条主链做成 phase 1 稳定基线。
+- **原因**：真实 GUI 隔离复测已经证明：
+  - 三条 `window.move(style=smart)` 单测可通过
+  - 两条核心 sequence 可通过
+  在这组证据下，继续引入 `native_walk` 只会提前增加协议复杂度。
+- **放弃的方案**：在当前主链已可用的情况下，立即把原生走路/爬行能力重新拉回 phase 1 主实现。
+- **影响**：后续是否引入 `native_walk`，将不再由“当前链路能不能跑”驱动，而只由“更长 story sequence 是否确实需要独占原生移动权”驱动。
+
+## [2026-03-29] 决策：phase 1 增加最小事件关联字段，而不是继续扩更多桌宠工作态
+- **背景**：当前 4 步核心 sequence 已经能跑，但一旦进入更长链路，单靠 `last_event_type / last_event_at` 很难把“后端发的第几步”和“VPet 实际消费到的哪一步”稳定对上，尤其是在同一条 sequence 里出现两次 `bubble.show` 这类重复事件类型时。
+- **选择**：在 phase 1 增加最小关联字段：
+  - 事件侧：`event_id / sequence_name / step_index`
+  - 状态侧：`last_event_id / last_sequence_name / last_step_index`
+- **原因**：这组字段可以在不深改 `GameCore` 的前提下，把后端编排步骤和前端执行消费建立一一对应关系。
+- **放弃的方案**：继续只依赖 `last_event_type / last_event_at` 猜测当前步骤，或为了关联问题去提前扩更多桌宠内部工作态。
+- **影响**：后续更长的 story sequence 联调将优先围绕“事件关联 + 完成门控”推进，而不是继续补大量状态字段。

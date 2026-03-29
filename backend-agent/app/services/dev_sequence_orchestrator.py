@@ -1,6 +1,7 @@
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from uuid import uuid4
 
 from fastapi import HTTPException
 
@@ -54,7 +55,7 @@ class DevSequenceOrchestrator:
     async def dispatch_sequence(self, request: DevSequenceRequest) -> DevSequenceDispatchResponse:
         sequence_name = (request.name or 'custom-sequence').strip() or 'custom-sequence'
         source = request.source.strip() or 'dev-sequence'
-        prepared_steps = self._prepare_steps(request.steps, source=source)
+        prepared_steps = self._prepare_steps(request.steps, source=source, sequence_name=sequence_name)
         self._start_background_run(prepared_steps)
         return DevSequenceDispatchResponse(
             status='accepted',
@@ -157,6 +158,7 @@ class DevSequenceOrchestrator:
                 steps=[
                     DevSequenceStepRequest(
                         event=DevEventRequest(type='mode.switch', mode='thinking'),
+                        wait_for='event_applied',
                     ),
                     DevSequenceStepRequest(
                         event=DevEventRequest(type='window.move', dx=90, dy=-20),
@@ -190,6 +192,7 @@ class DevSequenceOrchestrator:
                             duration_ms=5000,
                             expression='shy',
                         ),
+                        wait_for='event_applied',
                     ),
                     DevSequenceStepRequest(
                         event=DevEventRequest(type='window.move', dx=-110, dy=20),
@@ -202,6 +205,52 @@ class DevSequenceOrchestrator:
                         wait_for='motion_complete',
                         wait_timeout_ms=6000,
                         settle_ms=120,
+                    ),
+                    DevSequenceStepRequest(
+                        event=DevEventRequest(type='mode.switch', mode='normal'),
+                    ),
+                ],
+            ),
+            self._create_definition(
+                scenario_id='think-speak-move-touch-speak-recover',
+                title='think -> speak -> move -> touch -> speak -> normal',
+                description='更长的 6 步 story sequence，用于验证重复事件类型下的事件关联字段和完成门控。',
+                steps=[
+                    DevSequenceStepRequest(
+                        event=DevEventRequest(type='mode.switch', mode='thinking'),
+                        wait_for='event_applied',
+                    ),
+                    DevSequenceStepRequest(
+                        event=DevEventRequest(
+                            type='bubble.show',
+                            text='我先想一下这件事。',
+                            duration_ms=4000,
+                            expression='thinking',
+                            graph='think',
+                        ),
+                        wait_for='event_applied',
+                    ),
+                    DevSequenceStepRequest(
+                        event=DevEventRequest(type='window.move', dx=80, dy=-20),
+                        wait_for='move_complete',
+                        wait_timeout_ms=5000,
+                        settle_ms=120,
+                    ),
+                    DevSequenceStepRequest(
+                        event=DevEventRequest(type='motion.play', motion='touch_head', priority=55),
+                        wait_for='motion_complete',
+                        wait_timeout_ms=6000,
+                        settle_ms=120,
+                    ),
+                    DevSequenceStepRequest(
+                        event=DevEventRequest(
+                            type='bubble.show',
+                            text='想好了，我继续说给你听。',
+                            duration_ms=5000,
+                            expression='thinking',
+                            graph='think',
+                        ),
+                        wait_for='event_applied',
                     ),
                     DevSequenceStepRequest(
                         event=DevEventRequest(type='mode.switch', mode='normal'),
@@ -232,10 +281,16 @@ class DevSequenceOrchestrator:
             ),
         )
 
-    def _prepare_steps(self, steps: list[DevSequenceStepRequest], source: str) -> list[PreparedSequenceStep]:
+    def _prepare_steps(
+        self,
+        steps: list[DevSequenceStepRequest],
+        source: str,
+        sequence_name: str,
+    ) -> list[PreparedSequenceStep]:
         prepared_steps: list[PreparedSequenceStep] = []
-        for step in steps:
+        for index, step in enumerate(steps):
             event = self._behavior_policy_engine.build_manual_event(step.event, source=source)
+            event = self._attach_step_metadata(event, sequence_name=sequence_name, step_index=index)
             self._validate_wait_for(step, event)
             prepared_steps.append(
                 PreparedSequenceStep(
@@ -247,6 +302,16 @@ class DevSequenceOrchestrator:
                 )
             )
         return prepared_steps
+
+    def _attach_step_metadata(self, event: PetEvent, sequence_name: str, step_index: int) -> PetEvent:
+        event_id = event.event_id or f'{event.source}-{uuid4().hex[:12]}'
+        return event.model_copy(
+            update={
+                'event_id': event_id,
+                'sequence_name': sequence_name,
+                'step_index': step_index,
+            }
+        )
 
     def _validate_wait_for(self, step: DevSequenceStepRequest, event: PetEvent) -> None:
         if step.wait_for == 'move_complete' and not isinstance(event, WindowMoveEvent):
@@ -280,7 +345,7 @@ class DevSequenceOrchestrator:
 
         if step.wait_for == 'event_applied':
             await self._wait_for_event_applied(
-                event_type=step.event.type,
+                event=step.event,
                 dispatched_at=dispatched_at,
                 timeout_ms=step.wait_timeout_ms,
             )
@@ -303,17 +368,17 @@ class DevSequenceOrchestrator:
 
     async def _wait_for_event_applied(
         self,
-        event_type: str,
+        event: PetEvent,
         dispatched_at: datetime,
         timeout_ms: int,
     ) -> VPetStateSnapshot:
         def predicate(state: VPetStateSnapshot | None) -> bool:
-            return self._state_has_applied_event(state, event_type, dispatched_at)
+            return self._state_has_applied_event(state, event, dispatched_at)
 
         return await self._poll_state(
             predicate=predicate,
             timeout_ms=timeout_ms,
-            error_detail=f'等待 {event_type} 被 VPet 消费超时。',
+            error_detail=f'等待 {event.type} 被 VPet 消费超时。',
         )
 
     async def _wait_for_move_complete(
@@ -326,12 +391,12 @@ class DevSequenceOrchestrator:
         if not isinstance(event, WindowMoveEvent):
             raise HTTPException(status_code=422, detail='move_complete 只能用于 window.move。')
 
-        tolerance = 1.5
+        tolerance = 6.0
         expected_left = baseline_state.left + event.dx if baseline_state is not None else None
         expected_top = baseline_state.top + event.dy if baseline_state is not None else None
 
         def predicate(state: VPetStateSnapshot | None) -> bool:
-            if not self._state_has_applied_event(state, event.type, dispatched_at):
+            if not self._state_has_applied_event(state, event, dispatched_at):
                 return False
             if state is None or expected_left is None or expected_top is None:
                 return True
@@ -356,7 +421,7 @@ class DevSequenceOrchestrator:
             raise HTTPException(status_code=422, detail='motion_complete 只能用于 motion.play。')
 
         await self._wait_for_event_applied(
-            event_type=event.type,
+            event=event,
             dispatched_at=dispatched_at,
             timeout_ms=timeout_ms,
         )
@@ -366,7 +431,7 @@ class DevSequenceOrchestrator:
 
         def predicate(state: VPetStateSnapshot | None) -> bool:
             nonlocal saw_motion_display
-            if not self._state_has_applied_event(state, event.type, dispatched_at):
+            if not self._state_has_applied_event(state, event, dispatched_at):
                 return False
             if self._state_matches_motion(state, motion_key):
                 saw_motion_display = True
@@ -393,14 +458,17 @@ class DevSequenceOrchestrator:
     def _state_has_applied_event(
         self,
         state: VPetStateSnapshot | None,
-        event_type: str,
+        event: PetEvent,
         dispatched_at: datetime,
     ) -> bool:
+        if state is None or state.last_event_at is None or state.last_event_at < dispatched_at:
+            return False
+
+        if event.event_id:
+            return state.last_event_id == event.event_id
+
         return (
-            state is not None
-            and state.last_event_type == event_type
-            and state.last_event_at is not None
-            and state.last_event_at >= dispatched_at
+            state.last_event_type == event.type
         )
 
     def _state_matches_motion(self, state: VPetStateSnapshot | None, motion_key: str) -> bool:

@@ -1,7 +1,7 @@
 # Handoff 索引
 
 ## 最新 handoff
-- [2026-03-29-012-sleep-handoff-after-sequence-gating.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-29-012-sleep-handoff-after-sequence-gating.md)
+- [2026-03-29-013-sleep-handoff-after-event-correlation.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-29-013-sleep-handoff-after-event-correlation.md)
 
 ## 历史记录
 - `2026-03-27-001-phase1-import.md`
@@ -50,5 +50,9 @@
   - 说明：记录 `wait_for=move_complete|motion_complete` 落地，以及下一步切到真实 VPet 复测的恢复入口
 - `2026-03-29-012-sleep-handoff-after-sequence-gating.md`
   - 阶段：sleep handoff after sequence gating
-  - 状态：latest
+  - 状态：historical
   - 说明：记录睡前文档收口、明早恢复提示词，以及下一步切到真实 VPet 复测的恢复入口
+- `2026-03-29-013-sleep-handoff-after-event-correlation.md`
+  - 阶段：sleep handoff after event correlation
+  - 状态：latest
+  - 说明：记录事件关联字段落地、6 步 story sequence 定义完成，以及下一步由你自己做真实联调回写的恢复入口

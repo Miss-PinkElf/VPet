@@ -641,3 +641,139 @@
 
 ### 可以从活跃上下文中移除的内容
 - 这轮文档补齐前的零散恢复说明
+
+## Checkpoint 18 - 2026-03-29 Real Retest After Event-Applied + Move Tolerance Fix
+
+### 当前阶段
+- 阶段 3：核心 `wait_for` 门控已在真实 VPet 上完成隔离复测
+
+### 本轮完成内容
+- 用真实 GUI 链路重新拉起标准 `18787` 联调
+- 定位到 sequence 卡死的两层直接原因：
+  - 前置关键步未门控，导致后续 `window.move` 的 baseline 可能取到旧状态
+  - `move_complete` 的落点容差 `1.5` 在真实状态回传下过紧
+- 已修正：
+  - `thinking-walk-think` 首步 `mode.switch(thinking)` 改为 `wait_for=event_applied`
+  - `bubble-move-touch-recover` 首步 `bubble.show` 改为 `wait_for=event_applied`
+  - `move_complete` 容差 `1.5 -> 6.0`
+  - `/dev/control` 默认 sequence 与 `quick-tests.json` 同步到新门控
+- 在 fresh start / 隔离采样下完成真实复测并回写：
+  - `move-right-120`
+  - `move-left-120`
+  - `move-diagonal`
+  - `sequence-thinking-walk-think`
+  - `sequence-bubble-move-touch-recover`
+
+### 本轮决策与原因
+- 决策：当前不下探 `motion_complete` 到原生回调
+- 原因：`touch_head` 在真实 VPet 上已能稳定走完 `A_Start/B_Loop/C_End -> default`，当前证据足够
+- 决策：当前不引入 `native_walk`
+- 原因：核心 sequence 与 `style=smart` 位移已在 phase 1 范围内验证通过，没有必要提前引入新的移动模式复杂度
+
+### 本轮沉淀经验
+- 对依赖状态回传的 `move_complete`，如果前一步也会改变视觉/姿态，前一步至少要有 `event_applied`，否则后一步很容易拿到旧 baseline
+- 真实桌宠状态回传存在小幅浮点/落点抖动，位移完成门控不能把容差收得过死
+- `bubble_visible` 继续适合作为视觉残留字段，不适合拿来判断 sequence 事件先后
+
+### 待解决问题
+- 是否要把这组门控模式扩到更多 story-like sequence
+- 是否需要补 `event_id / sequence_name` 一类事件关联字段
+- `move.intent` 何时彻底退到纯文档兼容
+
+### 下一步
+- 以这轮已通过的 5 条真实测试作为 phase 1 基线
+- 如果继续扩长链路，优先补事件关联字段而不是继续扩桌宠工作态
+- 仅当后续新动作类型暴露问题时，再重开“原生动作完成回调 / native_walk”话题
+
+### 可以从活跃上下文中移除的内容
+- “当前 wait_for 还没有在真实 VPet 上证明可用” 这件事
+- “两条核心 sequence 仍然主要靠猜 delay” 这件事
+
+## Checkpoint 19 - 2026-03-29 Event Correlation Fields + Longer Story Sequence
+
+### 当前阶段
+- 阶段 3：phase 1 基线已稳定，开始为更长 story sequence 增加最小事件关联能力
+
+### 本轮完成内容
+- 在 Python 事件 schema 中新增：
+  - `event_id`
+  - `sequence_name`
+  - `step_index`
+- 在状态回传 schema 中新增：
+  - `last_event_id`
+  - `last_sequence_name`
+  - `last_step_index`
+- `BehaviorPolicyEngine` 现在会为手动事件自动生成 `event_id`
+- `DevSequenceOrchestrator` 现在会为 sequence step 自动附带：
+  - `event_id`
+  - `sequence_name`
+  - `step_index`
+- sequence 门控现在优先按 `event_id` 判断事件是否已被消费
+- C# 插件已同步接入并回传上述关联字段
+- 新增一个更长的 6 步 story sequence 到后端 scenario 与 `quick-tests.json`：
+  - `think-speak-move-touch-speak-recover`
+- `protocol-phase1.md` 已同步补上“Shared Trace Metadata”说明
+- 当前这条新增 6 步 sequence 仅完成定义与目录更新，真实结果未由助手回填，仍等待你自己测试后写回 `quick-tests.json`
+
+### 本轮决策与原因
+- 决策：先补事件关联字段，不继续扩更多桌宠内部工作态
+- 原因：当前更长链路的主要盲点已经不是“状态字段太少”，而是“重复事件类型下缺少后端步骤和前端消费的稳定对应关系”
+
+### 本轮沉淀经验
+- 对更长的 sequence，`last_event_type` 只能回答“刚消费了什么类型”，不能稳定回答“消费的是这条 sequence 的第几步”
+- `event_id / sequence_name / step_index` 这组三个字段，比继续堆工作态字段更直接、更贴近后端编排需求
+- 插件构建在沙箱内会卡在 MSBuild/项目引用阶段且不给有效错误；这类验证应优先用真实环境构建
+
+### 待解决问题
+- 新增 6 步 story sequence 的真实复测结果
+- `move.intent` 何时彻底退到纯文档兼容
+- 后续是否需要把 `bubble.show` 生命周期也做成更强的完成门控
+
+### 下一步
+- 由你在真实 VPet 上最小复测 `sequence-think-speak-move-touch-speak-recover`
+- 观察两次 `bubble.show` 是否能通过 `last_event_id / last_step_index` 稳定区分
+- 如果这条更长链路也收口，再考虑把关联字段扩到 backend-agent 更正式的调用面
+
+### 可以从活跃上下文中移除的内容
+- “phase 1 还没有更长 sequence 的测试目录入口” 这件事
+- “当前门控仍只能靠类型和时间猜步骤” 这件事
+
+## Checkpoint 20 - 2026-03-29 Sleep Handoff After Event Correlation
+
+### 当前阶段
+- 阶段 3：事件关联字段与 6 步 story sequence 已落地，准备暂停并压低下次恢复成本
+
+### 本轮完成内容
+- 检查当前改动与 `.explore` 记录缺口
+- 新增 handoff：
+  - `2026-03-29-013-sleep-handoff-after-event-correlation.md`
+- 更新：
+  - `handoffs/index.md`
+  - `state.md` 的最新 handoff 入口
+  - 根目录 `CONTINUE_VPET_BRIDGE_PROMPT.md`
+- 明确把新的协作边界写入恢复提示词：
+  - assistant 不替你跑真实联调
+  - assistant 负责补测试定义与实现
+  - 真实结果由你自己回写到 `quick-tests.json`
+
+### 本轮决策与原因
+- 决策：恢复入口要直接切到“事件关联字段已落地，但 6 步 sequence 结果仍待你自己回写”的状态
+- 原因：这样下次恢复不会误判这条新增 sequence 已经完成真实验证
+
+### 本轮沉淀经验
+- 对长期任务来说，handoff、state 和 continue prompt 三者必须同步；只更新其中一个，恢复时仍然容易偏离真实边界
+- 当用户明确要求“我自己测”，这个协作边界也应该写进 handoff 和 continue prompt，而不只是留在聊天里
+
+### 待解决问题
+- `sequence-think-speak-move-touch-speak-recover` 的真实联调结果
+- `move.intent` 何时彻底退到纯文档兼容
+- 是否要把完成门控继续扩到更多步骤
+
+### 下一步
+- 由你休息后用 `CONTINUE_VPET_BRIDGE_PROMPT.md` 恢复
+- 由你自己做新增 6 步 sequence 的真实联调并回写结果
+- 我再基于你回写的 `quick-tests.json` 继续收口实现
+
+### 可以从活跃上下文中移除的内容
+- 这轮 handoff 创建前的临时恢复说明
+- 这轮关于“助手要不要代跑真实联调”的反复确认

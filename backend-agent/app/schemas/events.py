@@ -6,6 +6,9 @@ from pydantic import BaseModel, Field
 
 class BasePetEvent(BaseModel):
     source: str = Field(default='backend')
+    event_id: Optional[str] = Field(default=None, max_length=120)
+    sequence_name: Optional[str] = Field(default=None, max_length=120)
+    step_index: Optional[int] = Field(default=None, ge=0, le=99)
 
 
 class BubbleShowEvent(BasePetEvent):
@@ -127,6 +130,9 @@ class VPetStateSnapshot(BaseModel):
     work_type: Optional[str] = Field(default=None, max_length=80)
     bubble_visible: bool = False
     last_event_type: Optional[str] = Field(default=None, max_length=80)
+    last_event_id: Optional[str] = Field(default=None, max_length=120)
+    last_sequence_name: Optional[str] = Field(default=None, max_length=120)
+    last_step_index: Optional[int] = Field(default=None, ge=0, le=99)
     last_event_at: Optional[datetime] = None
 
 

@@ -169,6 +169,40 @@
   - `bubble-move-touch-recover`
     - `window.move(style=smart)` 改为 `wait_for=move_complete`
     - `motion.play(touch_head)` 改为 `wait_for=motion_complete`
+- 2026-03-29 本轮真实隔离复测后继续收口：
+  - `thinking-walk-think` 的首步 `mode.switch(thinking)` 已补为 `wait_for=event_applied`
+  - `bubble-move-touch-recover` 的首步 `bubble.show` 已补为 `wait_for=event_applied`
+  - `move_complete` 的 `left/top` 落点容差已从 `1.5` 放宽到 `6.0`
+- 2026-03-29 本轮已继续把最小事件关联字段接进 phase 1：
+  - 事件侧：
+    - `event_id`
+    - `sequence_name`
+    - `step_index`
+  - 状态侧：
+    - `last_event_id`
+    - `last_sequence_name`
+    - `last_step_index`
+- 当前 sequence 门控已优先按 `event_id` 对齐；如果运行时没有该字段，再回退到 `last_event_type + last_event_at`
+- 本轮已新增一条更长的 story sequence 进入测试目录：
+  - `sequence-think-speak-move-touch-speak-recover`
+  - 该链路刻意包含两次 `bubble.show`，用于验证重复事件类型下的关联字段
+- 当前这条新增 6 步 sequence 只完成了：
+  - 后端 scenario 定义
+  - 联调默认示例
+  - `quick-tests.json` 测试目录
+  - 协议与记录同步
+- 当前这条新增 6 步 sequence 还没有你的真实测试结果；`quick-tests.json` 中保持为 `untested`
+- 2026-03-29 本轮在 fresh start / 真实 GUI / 隔离采样下确认通过：
+  - `move-right-120`
+  - `move-left-120`
+  - `move-diagonal`
+  - `sequence-thinking-walk-think`
+  - `sequence-bubble-move-touch-recover`
+- 本轮真实结论：
+  - 当前 `wait_for` 门控已经足以解决两条核心 sequence 的“动作没做完就进下一步”
+  - `motion_complete` 在 `touch_head` 上暂时不需要下探到原生回调
+  - 当前 phase 1 暂不需要引入 `native_walk`
+- `bubble-move-touch-recover` 中 `bubble_visible` 仍会在 `mode.switch(normal)` 后延迟消失，但已确认这是视觉残留，不再影响事件顺序判断
 - `/dev/control` 默认 sequence 示例与 `.explore/.../quick-tests.json` 已同步切到新的 `wait_for` 语义。
 - `.explore/.../spec/protocol-phase1.md` 已同步收口为“第一阶段已有最小完成门控，但不是所有步骤都已全覆盖”。
 - 本轮代码级验证已完成：
@@ -191,21 +225,18 @@
 - `move.intent` 的运行时薄兼容要保留多久，是否下一轮直接退到纯文档兼容。
 - 是否需要再补一个更强的事件关联字段，例如 `event_id / sequence_name`，以便把长链路时间线和后端编排一一对上。
 - `emotion -> graph` 是否需要继续做运行时导出，而不是只靠人工映射。
-- 真实 VPet 上新的 `move_complete / motion_complete` 是否已经把两条核心 sequence 的重合感压到可接受范围。
-- 新的 `style=smart` 是否已经让移动体感从“生硬纯移动”收口到“短距可接受、长距不拖沓”。
+- 当前这组门控是否直接固化为第一阶段默认示例与测试目录，还是还要再做一轮更长 sequence 扩测。
 - 是否要把完成门控继续扩到更多步骤，例如 `bubble.show` 生命周期或 `mode.switch(normal)` 恢复态。
-- 是否需要在第一阶段引入 `native_walk` 一类“由原生 move 系统独占移动权”的移动模式。
+- 新增的 `sequence-think-speak-move-touch-speak-recover` 真实复测结果如何。
 
 ## 下一步
-- 在真实 VPet 上最小复测两条核心 sequence，优先观察新的 `wait_for` 门控是否已经把“上一步没做完就进下一步”压下去。
-- 继续用 `/dev/quick-test` 保存新的真实结果回写，不再走口头转述。
-- 最小复测三条 `window.move(style=smart)` 单测，确认移动体感是否仍可接受。
+- 以这轮 5 条已通过的真实测试作为 phase 1 当前基线，不再回退到“主要靠猜 delay”。
 - 决定 `move.intent` 是否从运行时也退场，只保留文档兼容说明。
-- 如果真实联调还需要更细的编排调试，优先考虑补事件关联字段，而不是继续扩桌宠工作态。
-- 如果 `motion_complete` 仍不够稳，再讨论是否需要把桥接层动作完成信号更直接接到原生回调，或引入 `native_walk`。
+- 由你用新的事件关联字段真实复测更长的 story sequence，优先观察重复事件类型是否已能稳定对齐。
+- 仅当后续新动作类型暴露问题时，再重开“原生动作完成回调 / native_walk”话题。
 
 ## 最新 handoff
-- [2026-03-29-012-sleep-handoff-after-sequence-gating.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-29-012-sleep-handoff-after-sequence-gating.md)
+- [2026-03-29-013-sleep-handoff-after-event-correlation.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-29-013-sleep-handoff-after-event-correlation.md)
 
 ## 最小活跃上下文摘要
-- 当前重点已经收敛到：最小 `wait_for` 门控已经落地，下一步是用真实 VPet 复测两条核心 sequence，判断它是否已经解决“动作没做完就进下一步”，再决定是否还要下探到原生回调或 `native_walk`。
+- 当前重点已经收敛到：核心 `wait_for` 门控已通过真实复测，最小事件关联字段也已落地；下一步是把它们用到更长的 story sequence 上做真实验证。

@@ -96,6 +96,24 @@
   - 长距离：`smart`，表现为直接跳位
 - 当前还没有正式承诺稳定的“开门闪现”专项视觉 graph
 
+## Shared Trace Metadata
+
+以下字段当前作为 phase 1 推荐的调用关联元数据：
+
+- `event_id` 可选
+- `sequence_name` 可选
+- `step_index` 可选
+
+说明：
+
+- 这些字段不是新的动作能力，而是执行链路的关联信息
+- 对单事件调用，可只带 `event_id`
+- 对 sequence 调用，推荐同时带：
+  - `event_id`
+  - `sequence_name`
+  - `step_index`
+- 当一个 sequence 内有重复事件类型时，例如两次 `bubble.show`，这些字段可以避免后端只靠 `last_event_type` 猜测当前走到哪一步
+
 ## Official State Contract
 
 `VPet` 会向后端回传以下状态字段：
@@ -114,6 +132,9 @@
 - `work_type`
 - `bubble_visible`
 - `last_event_type`
+- `last_event_id`
+- `last_sequence_name`
+- `last_step_index`
 - `last_event_at`
 
 第一阶段推荐后端真正依赖的字段：
@@ -126,6 +147,9 @@
 - `display_animat`
 - `bubble_visible`
 - `last_event_type`
+- `last_event_id`
+- `last_sequence_name`
+- `last_step_index`
 - `last_event_at`
 
 说明：
@@ -134,6 +158,7 @@
 - `display_name / display_animat` 用于观察动作与视觉阶段
 - `bubble_visible` 用于观察气泡视觉残留
 - `last_event_type / last_event_at` 用于观察事件消费时序
+- `last_event_id / last_sequence_name / last_step_index` 用于把后端编排步骤和 VPet 实际消费步骤一一对上
 
 ## Legacy Compatibility
 

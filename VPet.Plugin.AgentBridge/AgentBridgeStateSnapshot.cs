@@ -53,6 +53,15 @@ namespace VPet.Plugin.AgentBridge
         [JsonPropertyName("last_event_type")]
         public string LastEventType { get; set; }
 
+        [JsonPropertyName("last_event_id")]
+        public string LastEventId { get; set; }
+
+        [JsonPropertyName("last_sequence_name")]
+        public string LastSequenceName { get; set; }
+
+        [JsonPropertyName("last_step_index")]
+        public int? LastStepIndex { get; set; }
+
         [JsonPropertyName("last_event_at")]
         public DateTimeOffset? LastEventAt { get; set; }
     }

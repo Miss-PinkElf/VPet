@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from fastapi import HTTPException
 
 from ..schemas.events import (
@@ -18,9 +20,11 @@ class BehaviorPolicyEngine:
             text=text,
             duration_ms=duration_ms,
             source=source,
+            event_id=self._build_event_id(source),
         )
 
     def build_manual_event(self, request: DevEventRequest, source: str = 'dev-control') -> PetEvent:
+        event_id = self._build_event_id(source)
         if request.type == 'bubble.show':
             if not request.text or not request.text.strip():
                 raise HTTPException(status_code=422, detail='bubble.show 需要提供 text。')
@@ -31,6 +35,7 @@ class BehaviorPolicyEngine:
                 expression=(request.expression.strip() if request.expression and request.expression.strip() else None),
                 graph=(request.graph.strip() if request.graph and request.graph.strip() else None),
                 source=source,
+                event_id=event_id,
             )
 
         if request.type == 'emotion.set':
@@ -40,6 +45,7 @@ class BehaviorPolicyEngine:
                 emotion=request.emotion.strip(),
                 graph=(request.graph.strip() if request.graph and request.graph.strip() else None),
                 source=source,
+                event_id=event_id,
             )
 
         if request.type == 'motion.play':
@@ -49,17 +55,18 @@ class BehaviorPolicyEngine:
                 motion=request.motion.strip(),
                 priority=request.priority,
                 source=source,
+                event_id=event_id,
             )
 
         if request.type == 'mode.switch':
             if not request.mode or not request.mode.strip():
                 raise HTTPException(status_code=422, detail='mode.switch 需要提供 mode。')
-            return ModeSwitchEvent(mode=request.mode.strip(), source=source)
+            return ModeSwitchEvent(mode=request.mode.strip(), source=source, event_id=event_id)
 
         if request.type == 'move.intent':
             if not request.intent or not request.intent.strip():
                 raise HTTPException(status_code=422, detail='move.intent 需要提供 intent。')
-            return MoveIntentEvent(intent=request.intent.strip(), source=source)
+            return MoveIntentEvent(intent=request.intent.strip(), source=source, event_id=event_id)
 
         if request.type == 'window.move':
             return WindowMoveEvent(
@@ -67,6 +74,11 @@ class BehaviorPolicyEngine:
                 dy=request.dy,
                 style=(request.style.strip() if request.style and request.style.strip() else None),
                 source=source,
+                event_id=event_id,
             )
 
         raise HTTPException(status_code=422, detail='不支持的事件类型。')
+
+    def _build_event_id(self, source: str) -> str:
+        source_key = source.strip().lower().replace(' ', '-') if source else 'backend'
+        return f'{source_key}-{uuid4().hex[:12]}'
