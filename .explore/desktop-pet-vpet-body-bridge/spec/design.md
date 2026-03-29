@@ -20,6 +20,10 @@
 
 - [protocol-phase1.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\spec\protocol-phase1.md)
 
+展示层控制面扩展与全控方案专题见：
+
+- [display-control-surface-and-full-control-plan.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\spec\display-control-surface-and-full-control-plan.md)
+
 ## Supporting References
 
 现阶段实现与迁移真相主要在：

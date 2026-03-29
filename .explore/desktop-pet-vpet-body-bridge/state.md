@@ -1,7 +1,7 @@
 # 当前状态
 
 ## 当前阶段
-- 阶段 3：移动语义已扩到 `style=smart`，当前重点已从 delay 微调切到“动作完成门控”。
+- 阶段 3：phase 1 最小协议已稳定，当前新增探索主题为“展示层控制面扩展与全控方案”。
 
 ## 已确认的事实
 - VPet 在本项目中的角色已经冻结为身体层 / 前端执行层。
@@ -215,28 +215,77 @@
   - `DisplayCEndtoNomal(...)`
   - 原生 `walk/crawl/fall/climb` move graph
 - 当前 bridge 仍未把所有动作统一挂到原生完成回调上；这仍是后续可选增强，而不是本轮最小门控前提。
+- 2026-03-30 本轮已完成一轮新的源码级控制面梳理：
+  - 当前桥接直接暴露的控制面，仍明显小于 `VPet` 展示层本体真实能力
+  - `VPet` 本体展示层除 phase 1 白名单外，还存在：
+    - `StateTWO`
+    - `StartUP`
+    - `Shutdown`
+    - `LevelUP`
+    - `Music`
+    - `Switch_*`
+    - `SideHide_*`
+    - 全部 `IDEL / MOVE / WORK / Say` 细分 graph
+- 2026-03-30 已确认一个关键技术事实：
+  - `Main.Display(string name, AnimatType, ...)` 已支持按 graph 名直接播放
+  - `Main.Say(text, graphname, force)` 已支持说话时附带指定 graph
+  - 这意味着“展示层大部分资源可被直接点播”在技术上已经成立
+- 2026-03-30 已确认“全控”必须分层：
+  - 资源目录层：告诉后端当前角色有哪些 graph
+  - 直接点播层：按 graph 名播放展示
+  - 行为语义层：封装贴边、探头、摸头、拖拽等复杂行为
+- 2026-03-30 已新增专题设计文档：
+  - `.explore/desktop-pet-vpet-body-bridge/spec/display-control-surface-and-full-control-plan.md`
+- 当前探索结论是：
+  - 以“视觉上把现有展示资源都点出来”为目标，高可行
+  - 以“把全部展示能力继续硬塞进 `motion.play / emotion.set` 白名单”为方向，不建议
+- 当前应继续区分两类控制目标：
+  - graph 资源点播
+  - 高层行为调用
 
 ## 工作假设
 - 当前优先级已从“补移动/回传”切到“用后端编排层和更可观测状态继续打磨身体层协议”。
 - 现阶段不需要回退到主工程内置桥接。
 - 当前 `.explore/desktop-pet-vpet-body-bridge/` 将作为新的 mission 真相源，旧 `.codex/explore/desktop-pet-vpet-body-bridge/` 仅保留为 legacy 参考。
+- phase 1 正式协议仍以 `spec/protocol-phase1.md` 为准。
+- 展示层全控专题应作为下一阶段扩展设计，和 phase 1 最小协议保持分离。
 
 ## 待解决的问题
 - `move.intent` 的运行时薄兼容要保留多久，是否下一轮直接退到纯文档兼容。
-- 是否需要再补一个更强的事件关联字段，例如 `event_id / sequence_name`，以便把长链路时间线和后端编排一一对上。
 - `emotion -> graph` 是否需要继续做运行时导出，而不是只靠人工映射。
 - 当前这组门控是否直接固化为第一阶段默认示例与测试目录，还是还要再做一轮更长 sequence 扩测。
 - 是否要把完成门控继续扩到更多步骤，例如 `bubble.show` 生命周期或 `mode.switch(normal)` 恢复态。
 - 新增的 `sequence-think-speak-move-touch-speak-recover` 真实复测结果如何。
+- 是否进入 phase 2 控制面扩展，实现：
+  - `graph.catalog`
+  - `graph.play`
+  - `behavior.invoke`
+  - `display.reset`
+  - `display.report`
+- catalog 是否还要附带：
+  - `animat_types`
+  - `mode_types`
+  - `safe_loop`
+  - `graph_type`
+- 贴边隐藏 / 探头 / 恢复态应优先做成独立行为，还是先只暴露底层 graph 点播能力。
 
 ## 下一步
-- 以这轮 5 条已通过的真实测试作为 phase 1 当前基线，不再回退到“主要靠猜 delay”。
-- 决定 `move.intent` 是否从运行时也退场，只保留文档兼容说明。
-- 由你用新的事件关联字段真实复测更长的 story sequence，优先观察重复事件类型是否已能稳定对齐。
-- 仅当后续新动作类型暴露问题时，再重开“原生动作完成回调 / native_walk”话题。
+- 保持 phase 1 最小协议不扩散，继续以 `spec/protocol-phase1.md` 作为正式承诺边界。
+- 以本轮新增的控制面专题文档为依据，决定是否开启 phase 2：
+  - 先做 `graph.catalog`
+  - 再做 `graph.play`
+  - 最后补 `behavior.invoke`
+- 如果进入实现，应优先选择“资源目录 + graph 点播 + 行为封装”的分层方案，而不是继续扩大当前硬编码白名单。
 
 ## 最新 handoff
-- [2026-03-29-013-sleep-handoff-after-event-correlation.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-29-013-sleep-handoff-after-event-correlation.md)
+- [2026-03-30-014-display-control-surface-and-rest-handoff.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-30-014-display-control-surface-and-rest-handoff.md)
 
 ## 最小活跃上下文摘要
-- 当前重点已经收敛到：核心 `wait_for` 门控已通过真实复测，最小事件关联字段也已落地；下一步是把它们用到更长的 story sequence 上做真实验证。
+- 当前 mission 有两条并行但不冲突的主线：
+- phase 1 主线：
+  - 最小协议与关键 `wait_for` 门控已稳定
+  - 后续主要是更长 sequence 的真实验证
+- phase 2 预研主线：
+  - 已确认展示层本体可控面远大于当前桥接白名单
+  - 已产出“展示层可控范围与全控方案”专题文档
+  - 下一步若要扩控制面，应优先实现 `graph.catalog -> graph.play -> behavior.invoke`

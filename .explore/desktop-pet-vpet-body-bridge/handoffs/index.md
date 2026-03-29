@@ -1,7 +1,7 @@
 # Handoff 索引
 
 ## 最新 handoff
-- [2026-03-29-013-sleep-handoff-after-event-correlation.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-29-013-sleep-handoff-after-event-correlation.md)
+- [2026-03-30-014-display-control-surface-and-rest-handoff.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-30-014-display-control-surface-and-rest-handoff.md)
 
 ## 历史记录
 - `2026-03-27-001-phase1-import.md`
@@ -54,5 +54,9 @@
   - 说明：记录睡前文档收口、明早恢复提示词，以及下一步切到真实 VPet 复测的恢复入口
 - `2026-03-29-013-sleep-handoff-after-event-correlation.md`
   - 阶段：sleep handoff after event correlation
-  - 状态：latest
+  - 状态：historical
   - 说明：记录事件关联字段落地、6 步 story sequence 定义完成，以及下一步由你自己做真实联调回写的恢复入口
+- `2026-03-30-014-display-control-surface-and-rest-handoff.md`
+  - 阶段：display control surface / rest handoff
+  - 状态：latest
+  - 说明：记录展示层本体可控范围梳理、全控扩展方案专题文档、最新恢复入口与提交边界

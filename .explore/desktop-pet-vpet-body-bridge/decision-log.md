@@ -107,3 +107,13 @@
 - **原因**：这组字段可以在不深改 `GameCore` 的前提下，把后端编排步骤和前端执行消费建立一一对应关系。
 - **放弃的方案**：继续只依赖 `last_event_type / last_event_at` 猜测当前步骤，或为了关联问题去提前扩更多桌宠内部工作态。
 - **影响**：后续更长的 story sequence 联调将优先围绕“事件关联 + 完成门控”推进，而不是继续补大量状态字段。
+
+## [2026-03-30] 决策：展示层全控扩展应采用“catalog + graph.play + behavior.invoke”分层方案
+- **背景**：本轮源码级梳理确认：当前桥接直接暴露的 `motion.play / emotion.set / mode.switch` 白名单，只覆盖了 `VPet` 展示层真实能力的一小部分；而 `Main.Display(string name, AnimatType, ...)` 与 `Main.Say(text, graphname, force)` 已经说明，展示层大部分资源本体上都可被点播。
+- **选择**：将展示层全控扩展分为三层：
+  - `graph.catalog`：导出当前角色真实 graph 目录
+  - `graph.play`：按 graph 名和动画阶段直接点播
+  - `behavior.invoke`：封装贴边、探头、摸头、拖拽等复杂行为
+- **原因**：这样能把“资源点播”和“行为语义”严格分离，既不破坏 phase 1 最小协议，也能避免继续扩大手写白名单带来的失真和维护成本。
+- **放弃的方案**：继续只扩大 `motion.play / emotion.set` 的硬编码 switch，把所有 graph 和行为都塞进少量语义字段。
+- **影响**：phase 1 的正式承诺边界保持不变；若进入下一阶段控制面扩展，应优先从 `graph.catalog` 开始，而不是先加更多 alias。

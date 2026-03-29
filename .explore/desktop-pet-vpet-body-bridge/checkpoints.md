@@ -258,6 +258,44 @@
   - `VPET_AGENT_BRIDGE_INTERVAL_MS=250`
   - `VPET_AGENT_BRIDGE_STATE_INTERVAL_MS=500`
 - 在插件状态快照与后端 schema 中新增 `last_event_at`
+
+## Checkpoint 9 - 2026-03-30 Display Control Surface Analysis
+
+### 当前阶段
+- 阶段 3：phase 1 最小协议已稳定，开始沉淀“展示层控制面扩展与全控方案”
+
+### 本轮完成内容
+- 从源码和当前 `vup` 角色资源目录出发，重新梳理了 `VPet` 展示层本体的真实可控范围
+- 区分了三类能力：
+  - 当前桥接已正式暴露的最小白名单
+  - 本体存在、但桥接尚未正式暴露的展示资源
+  - 不适合只靠 graph 点播、需要行为封装的复杂交互
+- 在当前 mission 的 `spec/` 下新增专题设计文档：
+  - `display-control-surface-and-full-control-plan.md`
+
+### 本轮决策与原因
+- 决策：展示层全控扩展不继续扩大当前 `motion.play / emotion.set` 手写白名单，而是采用：
+  - `graph.catalog`
+  - `graph.play`
+  - `behavior.invoke`
+- 原因：这样能把资源点播和行为语义解耦，并保持 phase 1 最小协议不被污染
+
+### 本轮沉淀经验
+- “当前桥接能控什么”和“前端展示层本体能点出什么”是两个不同问题，必须分开写
+- `VPet` 展示层大部分 graph 其实已具备被点播的底层能力，真正缺的是目录导出和协议整理，而不是底层播放器
+
+### 待解决问题
+- 是否正式进入 phase 2 控制面扩展，实现 `graph.catalog / graph.play / behavior.invoke`
+- catalog 是否要附带 `AnimatType / ModeType / safe_loop` 这类元数据
+- 贴边隐藏与探头第一版是先暴露 graph 点播，还是直接做高层行为
+
+### 下一步
+- 保持 `protocol-phase1.md` 作为正式承诺边界
+- 如果要继续推进全控，优先从 `graph.catalog` 开始，而不是先堆更多 alias
+
+### 可以从活跃上下文中移除的内容
+- 这轮关于“前端是否真的支持贴边、探头、工作态、StateTWO”的临时查证过程
+- 这轮关于 `vup` 资源目录逐个确认的命令级细节
 - `/dev/control` 移除 `move.intent` 手动入口，只保留 `window.move`
 - 更新迁移映射文档，明确新的状态字段与 legacy 退场位置
 
