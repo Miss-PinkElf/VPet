@@ -177,7 +177,7 @@ CONTROL_PAGE_HTML = """
     <main>
       <a class="page-link" href="/dev/quick-test">打开 Quick Test JSON 页面</a>
       <h1>桌宠后端测试页</h1>
-      <p>这个页面只用于联调。选择一种高层事件并发送，前端应按事件类型更新对话气泡、动作或窗口位置。第一阶段默认使用显式 `window.move`；`move.intent` 只保留运行时 legacy 兼容，不再作为联调主入口。</p>
+      <p>这个页面只用于联调。选择一种高层事件并发送，前端应按事件类型更新对话气泡、动作或窗口位置。第一阶段默认使用显式 `window.move`；`native.move.direction` 仅用于 dev-only 的原生 move system 探索；`move.intent` 只保留运行时 legacy 兼容，不再作为联调主入口。</p>
       <form id="control-form">
         <label>
           事件类型
@@ -187,6 +187,7 @@ CONTROL_PAGE_HTML = """
             <option value="motion.play">motion.play</option>
             <option value="mode.switch">mode.switch</option>
             <option value="window.move">window.move</option>
+            <option value="native.move.direction">native.move.direction</option>
           </select>
         </label>
 
@@ -279,6 +280,17 @@ CONTROL_PAGE_HTML = """
           </label>
         </div>
 
+        <label id="field-direction" class="hidden">
+          direction
+          <select id="direction">
+            <option value="">请选择</option>
+            <option value="left">left</option>
+            <option value="right">right</option>
+            <option value="up">up</option>
+            <option value="down">down</option>
+          </select>
+        </label>
+
         <button type="submit">Send</button>
       </form>
       <p id="status"></p>
@@ -370,6 +382,7 @@ CONTROL_PAGE_HTML = """
       const modeInput = document.getElementById('mode');
       const dxInput = document.getElementById('dx');
       const dyInput = document.getElementById('dy');
+      const directionInput = document.getElementById('direction');
       const status = document.getElementById('status');
       const latestState = document.getElementById('latest-state');
       const fieldText = document.getElementById('field-text');
@@ -382,6 +395,7 @@ CONTROL_PAGE_HTML = """
       const fieldMode = document.getElementById('field-mode');
       const fieldDx = document.getElementById('field-dx');
       const fieldDy = document.getElementById('field-dy');
+      const fieldDirection = document.getElementById('field-direction');
       const scenarioActions = document.getElementById('scenario-actions');
       const sequenceEditor = document.getElementById('sequence-editor');
       const runSequenceButton = document.getElementById('run-sequence');
@@ -401,6 +415,7 @@ CONTROL_PAGE_HTML = """
         fieldMode.classList.toggle('hidden', nextType !== 'mode.switch');
         fieldDx.classList.toggle('hidden', nextType !== 'window.move');
         fieldDy.classList.toggle('hidden', nextType !== 'window.move');
+        fieldDirection.classList.toggle('hidden', nextType !== 'native.move.direction');
       };
 
       const renderState = (state) => {
@@ -534,6 +549,7 @@ CONTROL_PAGE_HTML = """
             mode: modeInput.value,
             dx: Number(dxInput.value),
             dy: Number(dyInput.value),
+            direction: directionInput.value,
           };
 
           const result = await sendEvent(payload);

@@ -17,9 +17,12 @@ namespace VPet.Plugin.AgentBridge
     {
         private const int DefaultBubbleMotionLeadMilliseconds = 420;
         private const double SmartMoveSmoothDistanceThreshold = 160d;
-        private const int SmoothMoveMinimumSteps = 4;
-        private const int SmoothMoveMaximumSteps = 10;
-        private const int SmoothMoveStepDelayMilliseconds = 45;
+        private const double SmoothMoveStepDistance = 18d;
+        private const int SmoothMoveMinimumSteps = 5;
+        private const int SmoothMoveMaximumSteps = 12;
+        private const int SmoothMoveMinimumDurationMilliseconds = 120;
+        private const int SmoothMoveMaximumDurationMilliseconds = 220;
+        private const double SmoothMoveDurationDistanceFactor = 0.9d;
 
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -173,6 +176,10 @@ namespace VPet.Plugin.AgentBridge
                 case "window.move":
                     await MoveWindowAsync(bridgeEvent, cancellationToken);
                     RememberAppliedEvent("window.move", bridgeEvent);
+                    break;
+                case "native.move.direction":
+                    await mainWindow.Dispatcher.InvokeAsync(() => MoveNativeDirection(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
+                    RememberAppliedEvent("native.move.direction", bridgeEvent);
                     break;
                 case "move.intent":
                     await mainWindow.Dispatcher.InvokeAsync(() => MoveFromIntent(bridgeEvent), DispatcherPriority.Normal, cancellationToken);
@@ -330,10 +337,13 @@ namespace VPet.Plugin.AgentBridge
 
         private async Task SmoothMoveWindowAsync(double deltaX, double deltaY, CancellationToken cancellationToken)
         {
-            var distance = Math.Max(Math.Abs(deltaX), Math.Abs(deltaY));
-            var steps = Math.Clamp((int)Math.Ceiling(distance / 24d), SmoothMoveMinimumSteps, SmoothMoveMaximumSteps);
-            var stepX = deltaX / steps;
-            var stepY = deltaY / steps;
+            var distance = Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY));
+            var steps = Math.Clamp((int)Math.Ceiling(distance / SmoothMoveStepDistance), SmoothMoveMinimumSteps, SmoothMoveMaximumSteps);
+            var totalDurationMilliseconds = (int)Math.Clamp(
+                SmoothMoveMinimumDurationMilliseconds + (distance * SmoothMoveDurationDistanceFactor),
+                SmoothMoveMinimumDurationMilliseconds,
+                SmoothMoveMaximumDurationMilliseconds);
+            var stepDelayMilliseconds = Math.Max(1, totalDurationMilliseconds / steps);
             var movedX = 0d;
             var movedY = 0d;
 
@@ -341,8 +351,17 @@ namespace VPet.Plugin.AgentBridge
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var currentStepX = index == steps - 1 ? deltaX - movedX : stepX;
-                var currentStepY = index == steps - 1 ? deltaY - movedY : stepY;
+                var currentStepX = deltaX - movedX;
+                var currentStepY = deltaY - movedY;
+                if (index < steps - 1)
+                {
+                    // Keep window.move as pure displacement, but ease the cumulative progress
+                    // so short-range smart moves stop feeling like uniform time-sliced dragging.
+                    var easedProgress = EaseInOutSine((index + 1d) / steps);
+                    currentStepX = (deltaX * easedProgress) - movedX;
+                    currentStepY = (deltaY * easedProgress) - movedY;
+                }
+
                 movedX += currentStepX;
                 movedY += currentStepY;
 
@@ -353,7 +372,7 @@ namespace VPet.Plugin.AgentBridge
 
                 if (index < steps - 1)
                 {
-                    await Task.Delay(SmoothMoveStepDelayMilliseconds, cancellationToken);
+                    await Task.Delay(stepDelayMilliseconds, cancellationToken);
                 }
             }
         }
@@ -384,6 +403,29 @@ namespace VPet.Plugin.AgentBridge
             }
 
             controller.MoveWindows(deltaX, deltaY);
+        }
+
+        private void MoveNativeDirection(AgentBridgeEvent bridgeEvent)
+        {
+            var directionKey = bridgeEvent.Direction?.Trim().ToLowerInvariant();
+            var main = mainWindow.Main;
+            var controller = mainWindow.Core?.Controller;
+            var moves = mainWindow.Core?.Graph?.GraphConfig?.Moves;
+            if (main == null || controller == null || moves == null || string.IsNullOrWhiteSpace(directionKey))
+            {
+                return;
+            }
+
+            var move = directionKey switch
+            {
+                "left" => moves.Find(candidate => candidate.SpeedX < 0 && candidate.Checked(controller)),
+                "right" => moves.Find(candidate => candidate.SpeedX > 0 && candidate.Checked(controller)),
+                "up" => moves.Find(candidate => candidate.SpeedY < 0 && candidate.Checked(controller)),
+                "down" => moves.Find(candidate => candidate.SpeedY > 0 && candidate.Checked(controller)),
+                _ => null
+            };
+
+            move?.Display(main);
         }
 
         private MoveStyle ResolveMoveStyle(string requestedStyle, double deltaX, double deltaY)
@@ -586,6 +628,21 @@ namespace VPet.Plugin.AgentBridge
                 LastStepIndex = lastAppliedStepIndex,
                 LastEventAt = lastAppliedEventAt
             };
+        }
+
+        private static double EaseInOutSine(double progress)
+        {
+            if (progress <= 0d)
+            {
+                return 0d;
+            }
+
+            if (progress >= 1d)
+            {
+                return 1d;
+            }
+
+            return -(Math.Cos(Math.PI * progress) - 1d) / 2d;
         }
 
         private enum MoveStyle

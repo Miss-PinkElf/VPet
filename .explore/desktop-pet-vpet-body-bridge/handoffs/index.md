@@ -1,7 +1,7 @@
 # Handoff 索引
 
 ## 最新 handoff
-- [2026-03-31-015-phase1-sequence-acceptable-walk-next.md](E:\Learn\Vs\Code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-31-015-phase1-sequence-acceptable-walk-next.md)
+- [2026-03-31-016-native-move-direction-paused.md](E:\Learn\Vs\Code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-31-016-native-move-direction-paused.md)
 
 ## 历史记录
 - `2026-03-27-001-phase1-import.md`
@@ -62,5 +62,9 @@
   - 说明：记录展示层本体可控范围梳理、全控扩展方案专题文档、最新恢复入口与提交边界
 - `2026-03-31-015-phase1-sequence-acceptable-walk-next.md`
   - 阶段：phase 1 sequence acceptable / walk next
-  - 状态：latest
+  - 状态：historical
   - 说明：记录 6 步 story sequence 已收口到可接受范围、`motion_recovered` 落地，以及下一步转向走路体感问题
+- `2026-03-31-016-native-move-direction-paused.md`
+  - 阶段：native move direction paused
+  - 状态：latest
+  - 说明：记录原生 move system 探索、`native.move.direction` 第一版真实结果，以及当前决定先暂停此分支只保留文档与恢复入口

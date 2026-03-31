@@ -157,3 +157,68 @@
 - **原因**：当前这条 6 步 chain 已不再构成 phase 1 的主要阻塞，继续投入只会边际收益递减。
 - **放弃的方案**：继续围绕这条 chain 做无止境的尾段微调。
 - **影响**：phase 1 当前主要剩余体验问题收口为“走路体感生硬”；phase 2 的动画全映射仍保持独立主题。
+
+## [2026-03-31] 决策：phase 1 的 `window.move(style=smart)` 继续保持纯显式位移，但从线性切片改为 eased 位移曲线
+- **背景**：当前 `smart move` 虽然已经可控，但插件实现本质上只是固定步数 + 固定节奏的 `MoveWindows(...)` 线性切片，走位体感容易像机械滑块。
+- **选择**：不把 `DisplayMove()` 或原生 `walk/crawl/fall/climb` move graph 重新绑回 `window.move`；先把 `smart` 改为“距离感知总时长 + eased 累进位移”的纯位移实现。
+- **原因**：当前问题属于 phase 1 纯显式位移路径的节奏曲线过硬，而不是正式协议边界需要回退混入原生 move system。
+- **放弃的方案**：重新绑定 `DisplayMove()` 掩盖体感问题，或因为体感仍不够自然就提前跳到 phase 2 控制面扩展。
+- **影响**：phase 1 继续维持“`window.move(dx, dy)` 与原生 move system 严格分层”；如果 eased `smart` 仍不够，再单独讨论与 `window.move` 正式语义分开的原生 walk 能力。
+
+## [2026-03-31] 决策：停止继续微调 pure `window.move(style=smart)`，转向独立的原生 walk 能力探索
+- **背景**：你对 eased `smart move` 的最新真实反馈是“其实还是单纯的移动，机械滑块感，没有调用任何动作”。这说明问题已经不是 pure move 曲线是否够顺，而是整条路径没有动作层。
+- **选择**：不再继续优先微调 pure `window.move` 的曲线；下一步改为探索一个与 `window.move(dx, dy)` 正式语义分开的原生 walk / native move 能力入口。
+- **原因**：只要还停留在 `MoveWindows(...)` 纯位移层，再怎么调 easing 也不会自然出现原生 walk 动作表现。
+- **放弃的方案**：继续在 pure `window.move` 上反复调步数、时长和 easing，或直接把 `DisplayMove()` 偷偷并回 `window.move`。
+- **影响**：phase 1 的正式移动协议边界保持不变；后续如果实现原生 walk，也应先作为独立探索入口，而不是改写 `window.move` 的既有语义。
+
+## [2026-03-31] 决策：原生 walk 的第一轮探索先复用现有 `motion.play(move)`，不先扩新协议字面量
+- **背景**：桥接当前已经存在 `motion.play(move) -> Main.DisplayMove()` 这条独立路径；而用户最新反馈已经确认 pure `window.move` 再调曲线也不会产生动作层。
+- **选择**：先把 `motion.play(move)` 作为 dev-only 的原生 move system 探索入口，验证它是否足以承接“带动作的走路”体验；暂不先加新的协议字面量。
+- **原因**：这是当前成本最低、边界最清晰的探索方式，既不破坏 phase 1 正式协议，也不会把原生 move system 偷偷绑回 `window.move`。
+- **放弃的方案**：还没验证现有入口前，就先设计新的 native walk 事件名或新的 dx/dy 协议。
+- **影响**：下一轮真实联调焦点应转到 `motion.play(move)`；只有当它不足以承接原生 move 探索时，才需要继续扩 dev-only 入口。
+
+## [2026-03-31] 决策：`motion.play(move)` 已证明原生 move system 可独立进入，但当前仍是环境驱动、非确定性入口
+- **背景**：你对 `motion.play(move)` 的最新真实反馈是：会走、会爬、会贴墙爬，甚至可能斜着飞行。这与角色 `vup.lps` 中 `walk/crawl/climb/fall` 多组 move graph 及其边缘/方向触发条件一致。
+- **选择**：将 `motion.play(move)` 视为“原生 move system 已被独立触发”的已验证证据，但不把它当成当前已经足够稳定的正式控制入口。
+- **原因**：这条路径当前证明了“动作层确实存在且与 `window.move` 分层”，但同时也暴露出它受边缘状态、方向、兼容 move 切换规则影响，天然不是单一确定动作。
+- **放弃的方案**：把当前 `motion.play(move)` 的观感直接等同于“已经得到一个稳定可控的 native walk API”。
+- **影响**：下一步应先做源码级缩圈，判断能否在不进入 phase 2 的前提下，为原生 move system 增加更窄、更可控的 dev-only 约束入口。
+
+## [2026-03-31] 决策：如果继续探索原生 move system，优先顺序应是 `native.move.direction -> native.move.graph`
+- **背景**：本轮源码探索确认两件事：
+  - `DisplayMove()` 实际是从 `GraphConfig.Moves` 中随机挑选当前 `Triggered(...)` 为真的 move
+  - 原生控制台已经存在按 `SpeedX / SpeedY` 方向筛选 `move.Display(main)` 的调试入口
+- **选择**：后续若继续做 dev-only 原生 move 能力，先考虑两层：
+  - 第一层：`native.move.direction`
+  - 第二层：`native.move.graph`
+- **原因**：
+  - `direction` 最贴近现有控制台与源码结构，改动最小
+  - `graph` 更可控，但角色资源相关性更强，应放在更明确需要时再做
+- **放弃的方案**：一上来就把原生 move system 做成新的正式 phase 1 协议，或继续只保留 `motion.play(move)` 这种随机入口
+- **影响**：下一轮若开始实现，应优先考虑一个 dev-only 的最小方向入口，而不是立即扩成完整的 graph catalog / play 体系。
+
+## [2026-03-31] 决策：先实现 dev-only `native.move.direction`，暂不直接上 `native.move.graph`
+- **背景**：原生控制台现成就有按 `SpeedX / SpeedY` 方向筛选 move 的 helper，这已经足够支撑第一轮“更可控而不改正式协议”的实验。
+- **选择**：先实现 `native.move.direction(left|right|up|down)`，只做最小方向约束；`native.move.graph` 暂缓。
+- **原因**：这是当前最小、最稳、最贴近现有源码的收口点，能先验证“方向约束是否已经足够有用”。
+- **放弃的方案**：在还没证明方向约束有价值前，就先加按 graph 名精确控制入口。
+- **影响**：下一轮真实联调的重点应变为四个方向单测及其边缘表现，而不是继续围绕 `motion.play(move)` 的随机入口做判断。
+
+## [2026-03-31] 决策：保留 `native.move.direction` 路线，但下一轮先收紧 move 选择优先级
+- **背景**：四条 `native.move.direction` 真实测试均未通过方向预期：左右都会先冲到顶部再贴顶爬，上下都会先冲到左边再贴左爬。
+- **选择**：不废弃 `native.move.direction`；下一轮优先修改 `MoveNativeDirection(...)` 的 move 选择优先级：
+  - 方向匹配
+  - `Triggered(main)` 优先于仅 `Checked(...)`
+  - 普通 walk/crawl 优先于带 `LocateType` 的 climb/fall
+- **原因**：当前失败已经明确说明问题在“筛选过宽导致贴边 move 抢占”，不是 `native.move.direction` 这个 dev-only 入口本身没有价值。
+- **放弃的方案**：因为第一版 direction 失败，就立刻废弃方向入口，或直接跳到新的协议字面量。
+- **影响**：`native.move.direction` 仍值得保留并继续收口；`native.move.graph` 继续作为下一层备用增强，而不是立刻替代它。
+
+## [2026-03-31] 决策：native move 分支当前暂停，主线切回 phase 1 正式协议
+- **背景**：第一版 `native.move.direction` 已完成实现、真实测试与根因定位；当前用户明确表示“先不管这个了，回头做，先更新文档，做好记录”。
+- **选择**：保留现有探索记录与暂停 handoff，不继续 native move 分支的实现或联调；当前主线切回 phase 1 正式协议与稳定基线维护。
+- **原因**：当前 native move 分支的技术状态已经足够形成清晰恢复点，继续推进不再是当前回合目标。
+- **放弃的方案**：在用户明确要求暂停后，继续沿 native move 分支往下修。
+- **影响**：后续若要恢复 native move，直接从 `2026-03-31-016-native-move-direction-paused.md` 继续；未恢复前，不把它视作当前主线阻塞。

@@ -9,6 +9,7 @@ from ..schemas.events import (
     ModeSwitchEvent,
     MotionPlayEvent,
     MoveIntentEvent,
+    NativeMoveDirectionEvent,
     PetEvent,
     WindowMoveEvent,
 )
@@ -73,6 +74,15 @@ class BehaviorPolicyEngine:
                 dx=request.dx,
                 dy=request.dy,
                 style=(request.style.strip() if request.style and request.style.strip() else None),
+                source=source,
+                event_id=event_id,
+            )
+
+        if request.type == 'native.move.direction':
+            if not request.direction:
+                raise HTTPException(status_code=422, detail='native.move.direction 需要提供 direction。')
+            return NativeMoveDirectionEvent(
+                direction=request.direction,
                 source=source,
                 event_id=event_id,
             )
