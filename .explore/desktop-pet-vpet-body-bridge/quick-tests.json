@@ -1,4 +1,5 @@
 {
+  "current_focus_test_id": "sequence-think-speak-move-touch-speak-recover",
   "phase": "phase-1-front-end-contract-validation",
   "purpose": "当前阶段测试重点是验证 VPet 作为前端执行层时，第一阶段正式协议是否已经足够稳定可调用。",
   "watch_fields": [
@@ -18,7 +19,8 @@
   "notes": [
     "优先比较事件触发后的短时间窗口状态变化，不要用长时间窗口混入 VPet 自主移动噪声。",
     "当前阶段重点不是再补更多工作态字段，而是确认正式协议和时间线观测是否够用。",
-    "如果某条 sequence 含重复事件类型，例如两次 bubble.show，优先结合 last_event_id / last_sequence_name / last_step_index 观察是不是同一条步骤。"
+    "如果某条 sequence 含重复事件类型，例如两次 bubble.show，优先结合 last_event_id / last_sequence_name / last_step_index 观察是不是同一条步骤。",
+    "当前优先点击验证：sequence-think-speak-move-touch-speak-recover"
   ],
   "tests": [
     {
@@ -310,9 +312,9 @@
               "motion": "touch_head",
               "priority": 55
             },
-            "wait_for": "motion_complete",
+            "wait_for": "motion_recovered",
             "wait_timeout_ms": 6000,
-            "settle_ms": 120
+            "settle_ms": 320
           },
           {
             "event": {
@@ -376,9 +378,9 @@
               "motion": "touch_head",
               "priority": 55
             },
-            "wait_for": "motion_complete",
+            "wait_for": "motion_recovered",
             "wait_timeout_ms": 6000,
-            "settle_ms": 120
+            "settle_ms": 520
           },
           {
             "event": {
@@ -388,7 +390,8 @@
               "expression": "thinking",
               "graph": "think"
             },
-            "wait_for": "event_applied"
+            "wait_for": "event_applied",
+            "settle_ms": 520
           },
           {
             "event": {
@@ -399,9 +402,9 @@
         ]
       },
       "result": {
-        "status": "untested",
-        "note": "",
-        "updated_at": null
+        "status": "pass",
+        "note": "还行流畅度可以，只有一点点卡顿，可以接受",
+        "updated_at": "2026-03-31T08:34:37.731Z"
       }
     }
   ]

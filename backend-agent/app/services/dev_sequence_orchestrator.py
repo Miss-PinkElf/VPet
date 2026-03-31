@@ -37,6 +37,8 @@ class PreparedSequenceStep:
 
 
 class DevSequenceOrchestrator:
+    _MOTION_EXIT_STABLE_MS = 240
+
     def __init__(
         self,
         event_bus: EventBus,
@@ -202,9 +204,9 @@ class DevSequenceOrchestrator:
                     ),
                     DevSequenceStepRequest(
                         event=DevEventRequest(type='motion.play', motion='touch_head', priority=55),
-                        wait_for='motion_complete',
+                        wait_for='motion_recovered',
                         wait_timeout_ms=6000,
-                        settle_ms=120,
+                        settle_ms=320,
                     ),
                     DevSequenceStepRequest(
                         event=DevEventRequest(type='mode.switch', mode='normal'),
@@ -238,9 +240,9 @@ class DevSequenceOrchestrator:
                     ),
                     DevSequenceStepRequest(
                         event=DevEventRequest(type='motion.play', motion='touch_head', priority=55),
-                        wait_for='motion_complete',
+                        wait_for='motion_recovered',
                         wait_timeout_ms=6000,
-                        settle_ms=120,
+                        settle_ms=520,
                     ),
                     DevSequenceStepRequest(
                         event=DevEventRequest(
@@ -251,6 +253,7 @@ class DevSequenceOrchestrator:
                             graph='think',
                         ),
                         wait_for='event_applied',
+                        settle_ms=520,
                     ),
                     DevSequenceStepRequest(
                         event=DevEventRequest(type='mode.switch', mode='normal'),
@@ -316,8 +319,8 @@ class DevSequenceOrchestrator:
     def _validate_wait_for(self, step: DevSequenceStepRequest, event: PetEvent) -> None:
         if step.wait_for == 'move_complete' and not isinstance(event, WindowMoveEvent):
             raise HTTPException(status_code=422, detail='wait_for=move_complete 只能用于 window.move。')
-        if step.wait_for == 'motion_complete' and not isinstance(event, MotionPlayEvent):
-            raise HTTPException(status_code=422, detail='wait_for=motion_complete 只能用于 motion.play。')
+        if step.wait_for in {'motion_complete', 'motion_recovered'} and not isinstance(event, MotionPlayEvent):
+            raise HTTPException(status_code=422, detail='wait_for=motion_complete|motion_recovered 只能用于 motion.play。')
 
     def _start_background_run(self, prepared_steps: list[PreparedSequenceStep]) -> None:
         task = asyncio.create_task(self._run_sequence(prepared_steps))
@@ -359,6 +362,13 @@ class DevSequenceOrchestrator:
         elif step.wait_for == 'motion_complete':
             await self._wait_for_motion_complete(
                 event=step.event,
+                dispatched_at=dispatched_at,
+                timeout_ms=step.wait_timeout_ms,
+            )
+        elif step.wait_for == 'motion_recovered':
+            await self._wait_for_motion_recovered(
+                event=step.event,
+                baseline_state=baseline_state,
                 dispatched_at=dispatched_at,
                 timeout_ms=step.wait_timeout_ms,
             )
@@ -428,20 +438,63 @@ class DevSequenceOrchestrator:
 
         motion_key = self._normalize_state_token(event.motion)
         saw_motion_display = False
+        motion_exit_started_at: float | None = None
+        loop = asyncio.get_running_loop()
 
         def predicate(state: VPetStateSnapshot | None) -> bool:
-            nonlocal saw_motion_display
+            nonlocal motion_exit_started_at, saw_motion_display
             if not self._state_has_applied_event(state, event, dispatched_at):
                 return False
             if self._state_matches_motion(state, motion_key):
                 saw_motion_display = True
+                motion_exit_started_at = None
                 return False
-            return saw_motion_display
+            if not saw_motion_display:
+                return False
+            if motion_exit_started_at is None:
+                motion_exit_started_at = loop.time()
+                return False
+            return loop.time() - motion_exit_started_at >= (self._MOTION_EXIT_STABLE_MS / 1000)
 
         return await self._poll_state(
             predicate=predicate,
             timeout_ms=timeout_ms,
             error_detail=f'等待 motion.play({event.motion}) 结束超时。',
+        )
+
+    async def _wait_for_motion_recovered(
+        self,
+        event: PetEvent,
+        baseline_state: VPetStateSnapshot | None,
+        dispatched_at: datetime,
+        timeout_ms: int,
+    ) -> VPetStateSnapshot:
+        if not isinstance(event, MotionPlayEvent):
+            raise HTTPException(status_code=422, detail='motion_recovered 只能用于 motion.play。')
+
+        await self._wait_for_motion_complete(
+            event=event,
+            dispatched_at=dispatched_at,
+            timeout_ms=timeout_ms,
+        )
+
+        baseline_mode = self._normalize_state_token(baseline_state.mode if baseline_state else None)
+
+        def predicate(state: VPetStateSnapshot | None) -> bool:
+            if state is None:
+                return False
+            if self._state_matches_motion(state, self._normalize_state_token(event.motion)):
+                return False
+            if not self._state_animat_is_settled(state):
+                return False
+            if baseline_mode and self._normalize_state_token(state.mode) not in {'', baseline_mode}:
+                return False
+            return True
+
+        return await self._poll_state(
+            predicate=predicate,
+            timeout_ms=timeout_ms,
+            error_detail=f'等待 motion.play({event.motion}) 恢复到稳定展示态超时。',
         )
 
     async def _poll_state(self, predicate, timeout_ms: int, error_detail: str) -> VPetStateSnapshot:
@@ -477,6 +530,12 @@ class DevSequenceOrchestrator:
         display_name = self._normalize_state_token(state.display_name)
         display_type = self._normalize_state_token(state.display_type)
         return motion_key in {display_name, display_type}
+
+    def _state_animat_is_settled(self, state: VPetStateSnapshot | None) -> bool:
+        if state is None:
+            return False
+        animat = self._normalize_state_token(state.display_animat)
+        return animat not in {'a_start', 'c_end'}
 
     def _normalize_state_token(self, value: str | None) -> str:
         if not value:

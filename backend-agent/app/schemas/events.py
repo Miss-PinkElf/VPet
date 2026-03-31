@@ -83,7 +83,7 @@ class DevEventResponse(BaseModel):
 class DevSequenceStepRequest(BaseModel):
     delay_ms: int = Field(default=0, ge=0, le=20000)
     event: DevEventRequest
-    wait_for: Optional[Literal['event_applied', 'move_complete', 'motion_complete']] = None
+    wait_for: Optional[Literal['event_applied', 'move_complete', 'motion_complete', 'motion_recovered']] = None
     wait_timeout_ms: int = Field(default=6000, ge=200, le=30000)
     settle_ms: int = Field(default=0, ge=0, le=5000)
 

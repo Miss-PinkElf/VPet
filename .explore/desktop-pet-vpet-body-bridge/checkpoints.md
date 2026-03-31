@@ -815,3 +815,227 @@
 ### 可以从活跃上下文中移除的内容
 - 这轮 handoff 创建前的临时恢复说明
 - 这轮关于“助手要不要代跑真实联调”的反复确认
+
+## Checkpoint 21 - 2026-03-31 Focus Quick Test For Story Sequence
+
+### 当前阶段
+- 阶段 3：继续 phase 1，等待 6 步 story sequence 的真实联调结果回写
+
+### 本轮完成内容
+- 明确判断当前不进入 phase 2 控制面扩展
+- 将 mission `quick-tests.json` 标记当前 focus test：
+  - `sequence-think-speak-move-touch-speak-recover`
+- 同步更新 `state.md`，把下一步收口为：
+  - 先由你在 `/dev/quick-test` 点击这条 6 步 sequence
+  - 再根据真实结果决定继续 phase 1 还是切入 phase 2
+
+### 本轮决策与原因
+- 决策：当前继续 phase 1，不提前进入 `graph.catalog`
+- 原因：两条 4 步核心链路虽已通过，但 6 步 story sequence 仍是当前唯一未完成的 phase 1 关键验证点
+
+### 本轮沉淀经验
+- 当联调页面已经默认读取 mission `quick-tests.json` 时，最省协作成本的做法不是再发散新测试文件，而是直接把当前 focus test 标在 mission 真相源里
+
+### 待解决问题
+- `sequence-think-speak-move-touch-speak-recover` 的真实联调结果
+- 两次 `bubble.show` 是否能稳定通过 `last_event_id / last_sequence_name / last_step_index` 区分
+- `touch_head` 完成后再进入第二次 `bubble.show` 是否成立
+
+### 下一步
+- 由你在 `/dev/quick-test` 直接点击：
+  - `sequence-think-speak-move-touch-speak-recover`
+- 将真实结果回写到 `quick-tests.json`
+- 我再据此决定：
+  - 继续收口 phase 1
+  - 或切入 phase 2 的 `graph.catalog`
+
+### 可以从活跃上下文中移除的内容
+- “当前到底先测哪一条” 这件事
+
+## Checkpoint 22 - 2026-03-31 Story Sequence Result Triage
+
+### 当前阶段
+- 阶段 3：继续 phase 1，6 步 story sequence 已完成真实回写，但仍未收口
+
+### 本轮完成内容
+- 读取你回写的 `quick-tests.json`
+- 确认：
+  - `sequence-think-speak-move-touch-speak-recover`
+  - 结果为 `mixed`
+  - 备注为“动作还没有做完，就继续下一个，有一点点突兀”
+- 将当前问题重新分层：
+  - phase 1 阻塞：
+    - 完成门控仍不足
+    - 走路体感生硬
+    - 动作播放停止/结束判断不够稳
+  - phase 2 主题：
+    - 不再靠人工扩大所有动画映射
+    - 转向 `graph.catalog -> graph.play -> behavior.invoke`
+
+### 本轮决策与原因
+- 决策：当前不进入 phase 2
+- 原因：最新真实结果暴露的主要问题仍是 phase 1 的过渡和完成判断，不是目录控制面缺失
+- 决策：“所有动画做映射”继续视为 phase 2 主题，而不是本轮修复手段
+- 原因：当前问题根因不是 alias 数量少，而是动作完成闭环和视觉表现边界不够稳
+
+### 本轮沉淀经验
+- 更长 story sequence 比 4 步基线更容易暴露“4 步可过、6 步仍突兀”的问题；这说明最小 `motion_complete` 足以通过基线，但不等于已经覆盖更长叙事链路
+- “位移可控”和“走路观感自然”也是两个不同层级的问题，不能再混为同一个完成判断
+
+### 待解决问题
+- 是否需要把完成门控扩到：
+  - 第二次 `bubble.show` 前的恢复态确认
+  - `mode.switch(normal)` 前的过渡确认
+- `window.move(style=smart)` 是否需要引入更明确的原生 walk 表现边界，而不是只做分步位移
+- phase 2 的 `graph.catalog` 应何时开启
+
+### 下一步
+- 若开始实现，优先修：
+  - 6 步 chain 的完成门控
+  - 走路体感问题
+- 暂不以“全量动画映射”作为当前实现方向
+
+### 可以从活跃上下文中移除的内容
+- “6 步 sequence 还没出真实结果” 这件事
+
+## Checkpoint 23 - 2026-03-31 Motion Complete Stabilization
+
+### 当前阶段
+- 阶段 3：继续 phase 1，针对 6 步 story sequence 的“动作未做完就切下一个”做最小实现收口
+
+### 本轮完成内容
+- 在 `backend-agent/app/services/dev_sequence_orchestrator.py` 中增强 `motion_complete`：
+  - 不再在“刚离开动作显示态”时立刻完成
+  - 改为“离开动作显示态后还要稳定一小段时间”才放行
+- 将 6 步 story sequence 中 `touch_head` 步骤的 `settle_ms` 从 `120` 提高到 `320`
+- 同步更新：
+  - `backend-agent/app/api/routes/dev_control.py`
+  - `.explore/desktop-pet-vpet-body-bridge/quick-tests.json`
+
+### 本轮决策与原因
+- 决策：先增强现有 `motion_complete`，不新增新的 `wait_for` 类型
+- 原因：当前最需要先验证的，是“动作结束判断过于激进”是否就是 6 步链路突兀的直接原因
+
+### 本轮沉淀经验
+- 4 步链路能通过，不代表 story-like sequence 的动作结束判断已经足够保守
+- 对短动作来说，“离开动作态”与“适合切进下一段叙事”不是完全同一个时刻
+
+### 待解决问题
+- 这组更保守的 `motion_complete + settle_ms` 是否已经足够收口 6 步链路
+- 是否还需要把恢复态确认继续扩到第二次 `bubble.show` 或最终 `mode.switch(normal)`
+
+### 下一步
+- 由你重新点击：
+  - `sequence-think-speak-move-touch-speak-recover`
+- 继续把真实结果回写到 `quick-tests.json`
+- 若仍 `mixed`，下一轮再考虑是否补“恢复态门控”，而不是先扩动画映射
+
+### 可以从活跃上下文中移除的内容
+- “当前还完全没对 6 步链路做实现侧收口” 这件事
+
+### 追加真实反馈
+- 你在本轮实现后给出的最新体感反馈是：
+  - “好了一点点，不是那么突兀了”
+
+### 反馈解释
+- 这说明本轮增强 `motion_complete` 的方向是对的
+- 当前问题没有完全消失，意味着仅靠“动作退出后稳定一小段时间”还不够
+- 下一步更可能需要：
+  - 在第二次 `bubble.show` 前再增加恢复态门控
+  - 而不是切去做动画全映射或 phase 2 控制面
+
+## Checkpoint 24 - 2026-03-31 Motion Recovered Gate
+
+### 当前阶段
+- 阶段 3：继续 phase 1，把“动作已结束”和“已恢复到适合下一步的展示态”正式拆开
+
+### 本轮完成内容
+- 在 `backend-agent/app/schemas/events.py` 中新增：
+  - `wait_for=motion_recovered`
+- 在 `backend-agent/app/services/dev_sequence_orchestrator.py` 中新增恢复态门控：
+  - `motion_recovered` 先经过 `motion_complete`
+  - 再等待回到更稳定的展示态
+  - 并避免仍处在 `A_Start / C_End` 这类过渡动画阶段
+- 将 6 步 story sequence 中 `touch_head` 步骤切到：
+  - `wait_for=motion_recovered`
+- 同步更新：
+  - `backend-agent/app/api/routes/dev_control.py`
+  - `.explore/desktop-pet-vpet-body-bridge/quick-tests.json`
+  - `.explore/desktop-pet-vpet-body-bridge/spec/protocol-phase1.md`
+
+### 本轮决策与原因
+- 决策：对更长 story-like sequence 增加 `motion_recovered`
+- 原因：你的真实反馈已经证明单纯增强 `motion_complete` 是有效但不够，下一步必须显式区分“动作结束”和“恢复稳定”
+
+### 本轮沉淀经验
+- 对桌宠叙事链路来说，“显示上离开动作”不等于“观感上已经适合接下一句台词”
+- `display_animat` 对恢复态门控有价值，因为 `A_Start / C_End` 正是最容易造成“刚切回来又立刻切走”的突兀阶段
+
+### 待解决问题
+- `motion_recovered` 是否已经足够让 6 步 chain 收口到可接受体感
+- 若仍然只改善一点点，是否还需要给最终 `mode.switch(normal)` 增加恢复态或 settle 门控
+
+### 下一步
+- 由你重新点击：
+  - `sequence-think-speak-move-touch-speak-recover`
+- 再把新的真实结果回写到 `quick-tests.json`
+- 我再判断是继续收口 phase 1，还是终于可以切走路问题或 phase 2
+
+### 可以从活跃上下文中移除的内容
+- “恢复态门控还只是下一步想法” 这件事
+
+### 追加真实反馈
+- 你在切到 `motion_recovered` 后继续反馈：
+  - “好了一点点，不是特别突兀了”
+  - 但“后面的再说话、回复，感觉像动作没有做完就做了后面两步”
+
+### 反馈解释
+- 这说明当前剩余问题已经进一步收口到尾段两步，而不是整条 6 步 chain
+- 因此本轮继续做的不是新增别的协议方向，而是：
+  - 把 `touch_head` 后的 `settle_ms` 再拉大
+  - 给第二次 `bubble.show` 本身也加一段 `settle_ms`
+
+## Checkpoint 25 - 2026-03-31 Tail-Step Relaxation For Story Sequence
+
+### 当前阶段
+- 阶段 3：继续 phase 1，针对 6 步 chain 的后两步仍偏快做尾段节奏收口
+
+### 本轮完成内容
+- 修正 6 步 story sequence，让其真正切到：
+  - `wait_for=motion_recovered`
+- 将 `touch_head` 步骤的 `settle_ms` 从 `320` 提高到 `520`
+- 给第二次 `bubble.show` 增加：
+  - `settle_ms=520`
+- 同步更新：
+  - `backend-agent/app/services/dev_sequence_orchestrator.py`
+  - `backend-agent/app/api/routes/dev_control.py`
+  - `.explore/desktop-pet-vpet-body-bridge/quick-tests.json`
+
+### 本轮决策与原因
+- 决策：当前继续通过尾段节奏收口，而不是切到新的能力面
+- 原因：你的最新反馈已经把问题范围缩小到“后面两步太快”，这说明继续拉开尾段比发散到别的方向更有效
+
+### 本轮沉淀经验
+- 当 story sequence 已经从“整体突兀”收口到“尾段两步偏快”时，说明门控方向已经基本正确，接下来主要是尾段节奏而不是前段语义
+
+### 待解决问题
+- 这组更保守的尾段参数是否已经足够
+- 如果仍偏快，是否要给最终 `mode.switch(normal)` 再补显式恢复门控，而不是只靠第二次 `bubble.show` 的 `settle_ms`
+
+### 下一步
+- 由你再次点击：
+  - `sequence-think-speak-move-touch-speak-recover`
+- 再给我一句体感反馈即可
+
+### 可以从活跃上下文中移除的内容
+- “当前主要问题还在整条 sequence 前半段” 这件事
+
+### 最终真实反馈
+- 你最新确认：
+  - “还行流畅度可以，只有一点点卡顿，可以接受”
+
+### 最终判断
+- 这条 6 步 story sequence 已可视为 phase 1 可接受基线
+- 当前不再继续优先微调这条链路
+- phase 1 的主要剩余体验问题转为：
+  - `window.move(style=smart)` 的走路体感仍然生硬

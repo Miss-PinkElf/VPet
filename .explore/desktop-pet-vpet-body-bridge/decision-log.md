@@ -117,3 +117,43 @@
 - **原因**：这样能把“资源点播”和“行为语义”严格分离，既不破坏 phase 1 最小协议，也能避免继续扩大手写白名单带来的失真和维护成本。
 - **放弃的方案**：继续只扩大 `motion.play / emotion.set` 的硬编码 switch，把所有 graph 和行为都塞进少量语义字段。
 - **影响**：phase 1 的正式承诺边界保持不变；若进入下一阶段控制面扩展，应优先从 `graph.catalog` 开始，而不是先加更多 alias。
+
+## [2026-03-31] 决策：6 步 story sequence 暴露的是 phase 1 完成门控与过渡体验问题，不是现在就去做全量动画映射
+- **背景**：你在 `quick-tests.json` 中回写 `sequence-think-speak-move-touch-speak-recover = mixed`，备注为“动作还没有做完，就继续下一个，有一点点突兀”；同时你继续强调走路体感生硬，以及不应再靠人工扩大所有动画映射。
+- **选择**：当前继续留在 phase 1，优先收口：
+  - 更长 story sequence 的完成门控
+  - `window.move` 的走路体感问题
+  不把“所有动画做映射”当成当前阻塞修复手段。
+- **原因**：这次真实结果说明，当前主要问题是“过渡不自然”和“动作结束判断不够稳”，而不是“事件关联字段失效”或“现有白名单数量不够”。
+- **放弃的方案**：因为 6 步链路仍有突兀，就立刻跳到 phase 2 去扩 `graph.catalog / graph.play / behavior.invoke`，或者继续人工堆更多 `motion / emotion` alias。
+- **影响**：下一轮如果开始实现，应先修 phase 1 的门控/移动体验；全量动画暴露与映射保持为 phase 2 专题。
+
+## [2026-03-31] 决策：先增强现有 `motion_complete`，不新增新的 phase 1 门控类型
+- **背景**：6 步 story sequence 的主要问题收口为“`touch_head` 刚离开动作态就切进第二次 `bubble.show`，体感仍然突兀”。
+- **选择**：继续复用现有 `wait_for=motion_complete`，但把其完成条件增强为：
+  - 先看到动作态
+  - 再等待离开动作态后稳定一小段时间
+  - 同时把 6 步 story sequence 中该步的 `settle_ms` 拉大
+- **原因**：这是最小改动，能优先验证问题是否只是“动作结束判断太激进”，而不需要立刻新增新的协议字面量或扩更多状态字段。
+- **放弃的方案**：本轮直接新增新的 `wait_for` 类型，或为了过渡问题提前引入原生回调体系。
+- **影响**：phase 1 的协议边界不变，但 `motion_complete` 的运行时语义变得更保守，更适合 story-like sequence。
+
+## [2026-03-31] 决策：对更长 story sequence 增加 `motion_recovered`，作为 `motion_complete` 之上的恢复态门控
+- **背景**：在增强 `motion_complete` 并拉大 `settle_ms` 后，你的真实反馈变成“好了一点点，不是那么突兀了”。这说明方向正确，但仅靠“动作退出后短暂稳定”仍不够。
+- **选择**：为 `motion.play` 增加新的 phase 1 门控：
+  - `wait_for=motion_recovered`
+  它在 `motion_complete` 之后，继续等待回到更稳定的展示态，再放行下一步。
+- **原因**：这样可以把“动作已结束”和“已经适合切到下一段叙事”明确区分开，而不需要现在就引入原生回调或跳到 phase 2。
+- **放弃的方案**：继续只调 `settle_ms`，或把“恢复态问题”转嫁成动画全映射问题。
+- **影响**：phase 1 的门控集合从：
+  - `event_applied / move_complete / motion_complete`
+  扩展为：
+  - `event_applied / move_complete / motion_complete / motion_recovered`
+  其中 `motion_recovered` 优先用于更长的 story-like sequence。
+
+## [2026-03-31] 决策：将 6 步 story sequence 视为 phase 1 已收口到可接受范围，后续主焦点转向走路体感
+- **背景**：你在继续收口尾段两步后给出最新真实反馈：“还行流畅度可以，只有一点点卡顿，可以接受”。
+- **选择**：不再继续围绕 `sequence-think-speak-move-touch-speak-recover` 做高频微调，将其视为 phase 1 的可接受基线；下一步主焦点转向 `window.move(style=smart)` 的走路体感问题。
+- **原因**：当前这条 6 步 chain 已不再构成 phase 1 的主要阻塞，继续投入只会边际收益递减。
+- **放弃的方案**：继续围绕这条 chain 做无止境的尾段微调。
+- **影响**：phase 1 当前主要剩余体验问题收口为“走路体感生硬”；phase 2 的动画全映射仍保持独立主题。

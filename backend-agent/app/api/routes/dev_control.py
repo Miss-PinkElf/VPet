@@ -289,7 +289,7 @@ CONTROL_PAGE_HTML = """
       </section>
       <section class="sequence-panel">
         <h2>自定义 Sequence</h2>
-        <p>这里继续用于更长链路联调。`delay_ms` 表示该步执行前的等待时间；`wait_for` 可让该步在真正落稳后再进入下一步。当前最实用的门控是 `event_applied`、`move_complete` 和 `motion_complete`。当一条 sequence 里出现两次 `bubble.show` 这类重复事件时，优先看状态里的 `last_event_id / last_sequence_name / last_step_index`。</p>
+        <p>这里继续用于更长链路联调。`delay_ms` 表示该步执行前的等待时间；`wait_for` 可让该步在真正落稳后再进入下一步。当前最实用的门控是 `event_applied`、`move_complete`、`motion_complete` 和更保守的 `motion_recovered`。当一条 sequence 里出现两次 `bubble.show` 这类重复事件时，优先看状态里的 `last_event_id / last_sequence_name / last_step_index`。</p>
         <textarea id="sequence-editor">{
   "name": "think-speak-move-touch-speak-recover",
   "steps": [
@@ -327,9 +327,9 @@ CONTROL_PAGE_HTML = """
         "motion": "touch_head",
         "priority": 55
       },
-      "wait_for": "motion_complete",
+      "wait_for": "motion_recovered",
       "wait_timeout_ms": 6000,
-      "settle_ms": 120
+      "settle_ms": 520
     },
     {
       "event": {
@@ -339,7 +339,8 @@ CONTROL_PAGE_HTML = """
         "expression": "thinking",
         "graph": "think"
       },
-      "wait_for": "event_applied"
+      "wait_for": "event_applied",
+      "settle_ms": 520
     },
     {
       "event": {
@@ -1270,9 +1271,9 @@ def _default_quick_test_catalog() -> dict[str, Any]:
                                 'motion': 'touch_head',
                                 'priority': 55,
                             },
-                            'wait_for': 'motion_complete',
+                            'wait_for': 'motion_recovered',
                             'wait_timeout_ms': 6000,
-                            'settle_ms': 120,
+                            'settle_ms': 520,
                         },
                         {
                             'event': {
@@ -1283,6 +1284,7 @@ def _default_quick_test_catalog() -> dict[str, Any]:
                                 'graph': 'think',
                             },
                             'wait_for': 'event_applied',
+                            'settle_ms': 520,
                         },
                         {
                             'event': {

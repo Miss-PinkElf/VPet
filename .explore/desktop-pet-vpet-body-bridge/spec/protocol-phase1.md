@@ -196,10 +196,14 @@
 - 当前可以对关键步骤加最小完成门控：
   - `wait_for=move_complete`
   - `wait_for=motion_complete`
+  - `wait_for=motion_recovered`
   - `wait_for=event_applied`
 - 当前最适合先门控的步骤是：
   - `window.move`
   - `motion.play(touch_head/touch_body/pinch)` 这一类短动作
+- 对更长的 story-like sequence，如果“动作刚退出就切下一步”仍显得突兀，可优先改用：
+  - `wait_for=motion_recovered`
+  以等待动作退出后回到更稳定的展示态
 - 还没有承诺“所有 graph / mode / bubble 生命周期都已具备稳定完成门控”
 
 ## Backend Calling Guidance

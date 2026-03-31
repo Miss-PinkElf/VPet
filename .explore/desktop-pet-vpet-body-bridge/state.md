@@ -251,6 +251,14 @@
 - 展示层全控专题应作为下一阶段扩展设计，和 phase 1 最小协议保持分离。
 
 ## 待解决的问题
+- 2026-03-31 你回写的 6 步 story sequence 结果为 `mixed`：
+  - 现象：整体仍不连贯，存在“上一个动作还没做完，就继续下一个”的突兀感
+- 当前 `window.move(style=smart)` 虽已可控，但“走路体感生硬”仍是已确认体验问题：
+  - 这不是早期“乱走/乱爬”协议错误的回归
+  - 而是 phase 1 显式位移与原生 move graph 分层后的视觉质感缺口
+- 当前还存在“动作播放停止 / 动作结束判断不够稳”的问题：
+  - 当前 `motion_complete / motion_recovered` 已足以把更长 story sequence 收口到可接受范围
+  - 后续若再扩更长链路，仍可继续复用这组门控
 - `move.intent` 的运行时薄兼容要保留多久，是否下一轮直接退到纯文档兼容。
 - `emotion -> graph` 是否需要继续做运行时导出，而不是只靠人工映射。
 - 当前这组门控是否直接固化为第一阶段默认示例与测试目录，还是还要再做一轮更长 sequence 扩测。
@@ -271,21 +279,46 @@
 
 ## 下一步
 - 保持 phase 1 最小协议不扩散，继续以 `spec/protocol-phase1.md` 作为正式承诺边界。
-- 以本轮新增的控制面专题文档为依据，决定是否开启 phase 2：
-  - 先做 `graph.catalog`
-  - 再做 `graph.play`
-  - 最后补 `behavior.invoke`
-- 如果进入实现，应优先选择“资源目录 + graph 点播 + 行为封装”的分层方案，而不是继续扩大当前硬编码白名单。
+- 当前继续留在 phase 1，不进入 phase 2。
+- 先收口三类已经暴露出来的问题边界：
+  - 6 步 story sequence 的完成门控已基本收口
+  - `window.move(style=smart)` 可控但体感生硬，需重新定义“位移”和“原生 walk 表现”的关系
+  - “所有动画做映射”不再作为 phase 1 阻塞处理，而转入 phase 2 的 `graph.catalog -> graph.play -> behavior.invoke`
+- phase 1 收口优先顺序：
+  - 当前优先转向“走路体感生硬”
+  - 暂不先扩全量动画 alias
+- 本轮已先做最小实现收口：
+  - `motion_complete` 改为“离开动作显示态后还要稳定一小段时间”才算完成
+  - 6 步 story sequence 中 `touch_head` 步骤的 `settle_ms` 已从 `120` 提高到 `320`
+  - 6 步 story sequence 中 `touch_head` 步骤已进一步切到：
+    - `wait_for=motion_recovered`
+    - 用于等待动作退出后回到更稳定的展示态
+- 你最新真实反馈是：
+  - “好了一点点，不是那么突兀了”
+- 你进一步补充的最新体感是：
+  - “后面的再说话、回复，感觉像动作没有做完就做了后面两步”
+- 你最终最新确认是：
+  - “还行流畅度可以，只有一点点卡顿，可以接受”
+- 当前判断：
+  - `motion_complete -> motion_recovered -> 尾段 settle` 这条收口方向成立
+  - 当前 6 步 story sequence 已可作为 phase 1 的可接受基线
+  - 下一步不再继续死抠这条 sequence，而应转向走路体感问题
+- 当上述 phase 1 体验问题收口后，再进入 phase 2，从 `graph.catalog` 开始
 
 ## 最新 handoff
-- [2026-03-30-014-display-control-surface-and-rest-handoff.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-30-014-display-control-surface-and-rest-handoff.md)
+- [2026-03-31-015-phase1-sequence-acceptable-walk-next.md](E:\Learn\Vs\Code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-31-015-phase1-sequence-acceptable-walk-next.md)
 
 ## 最小活跃上下文摘要
 - 当前 mission 有两条并行但不冲突的主线：
 - phase 1 主线：
   - 最小协议与关键 `wait_for` 门控已稳定
-  - 后续主要是更长 sequence 的真实验证
+  - 6 步 story sequence 已完成真实回写，当前结论是：
+    - `sequence-think-speak-move-touch-speak-recover = pass`
+    - 仅剩一点点卡顿，但已在可接受范围内
+  - 当前 phase 1 的真实阻塞已收口为：
+    - 走路体感仍然生硬
 - phase 2 预研主线：
   - 已确认展示层本体可控面远大于当前桥接白名单
   - 已产出“展示层可控范围与全控方案”专题文档
-  - 下一步若要扩控制面，应优先实现 `graph.catalog -> graph.play -> behavior.invoke`
+  - “所有动画做映射”应按 `graph.catalog -> graph.play -> behavior.invoke` 推进
+  - 但当前不作为 phase 1 阻塞项
