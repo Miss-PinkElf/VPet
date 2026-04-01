@@ -452,23 +452,26 @@ namespace VPet.Plugin.AgentBridge
 
         private string ResolveGraphName(AgentBridgeEvent bridgeEvent)
         {
-            if (!string.IsNullOrWhiteSpace(bridgeEvent.Graph))
+            if (TryResolveExplicitGraphName(bridgeEvent.Graph, out var explicitGraphName))
             {
-                return bridgeEvent.Graph.Trim();
+                return explicitGraphName;
             }
 
             var expressionKey = !string.IsNullOrWhiteSpace(bridgeEvent.Expression)
                 ? bridgeEvent.Expression
                 : bridgeEvent.Emotion;
 
-            return expressionKey?.Trim().ToLowerInvariant() switch
+            if (TryResolveSupportedExpressionGraph(expressionKey, out var supportedGraphName))
             {
-                "think" => "think",
-                "thinking" => "think",
-                "pinch" => "pinch",
-                "shy" => "pinch",
-                _ => null
-            };
+                return supportedGraphName;
+            }
+
+            if (TryResolveLegacyExpressionGraph(expressionKey, out var legacyGraphName))
+            {
+                return legacyGraphName;
+            }
+
+            return null;
         }
 
         private void DisplayGraphLoop(string graphName)
@@ -512,6 +515,13 @@ namespace VPet.Plugin.AgentBridge
                 mainWindow.Main.Display("pinch", AnimatType.B_Loop, () => mainWindow.Main.DisplayCEndtoNomal("pinch")));
         }
 
+        private bool HasDisplayGraph(string graphName)
+        {
+            return HasGraph(graphName, AnimatType.A_Start)
+                || HasGraph(graphName, AnimatType.B_Loop)
+                || HasGraph(graphName, AnimatType.Single);
+        }
+
         private bool HasGraph(string graphName, AnimatType animatType)
         {
             return (mainWindow.Core?.Graph?.FindGraphs(graphName, animatType, mainWindow.Core.Save.Mode)?.Count ?? 0) > 0;
@@ -519,16 +529,52 @@ namespace VPet.Plugin.AgentBridge
 
         private bool TryResolveNativeBubbleMotionGraph(string motionName, out string graphName)
         {
-            graphName = motionName?.Trim().ToLowerInvariant() switch
+            var motionKey = motionName?.Trim().ToLowerInvariant();
+            graphName = motionKey switch
             {
                 "touch_head" => mainWindow.Core?.Graph?.FindName(GraphType.Touch_Head),
                 "touch_body" => mainWindow.Core?.Graph?.FindName(GraphType.Touch_Body),
-                "pinch" => "pinch",
-                "thinking" => "think",
                 _ => null
             };
 
-            return !string.IsNullOrWhiteSpace(graphName) && HasGraph(graphName, AnimatType.A_Start);
+            if (!string.IsNullOrWhiteSpace(graphName) && HasGraph(graphName, AnimatType.A_Start))
+            {
+                return true;
+            }
+
+            return TryResolveSupportedExpressionGraph(motionKey, out graphName) && HasGraph(graphName, AnimatType.A_Start);
+        }
+
+        private bool TryResolveExplicitGraphName(string graphName, out string resolvedGraphName)
+        {
+            resolvedGraphName = graphName?.Trim();
+            return !string.IsNullOrWhiteSpace(resolvedGraphName) && HasDisplayGraph(resolvedGraphName);
+        }
+
+        private bool TryResolveSupportedExpressionGraph(string expressionKey, out string graphName)
+        {
+            graphName = expressionKey?.Trim().ToLowerInvariant() switch
+            {
+                "think" => "think",
+                "thinking" => "think",
+                "pinch" => "pinch",
+                _ => null
+            };
+
+            return !string.IsNullOrWhiteSpace(graphName) && HasDisplayGraph(graphName);
+        }
+
+        private bool TryResolveLegacyExpressionGraph(string expressionKey, out string graphName)
+        {
+            // Keep shy only as a legacy approximation. It should not be treated as a
+            // newly expanded phase 1 emotion surface.
+            graphName = expressionKey?.Trim().ToLowerInvariant() switch
+            {
+                "shy" => "pinch",
+                _ => null
+            };
+
+            return !string.IsNullOrWhiteSpace(graphName) && HasDisplayGraph(graphName);
         }
 
         private static int GetBubbleMotionLeadMilliseconds(string motionName)

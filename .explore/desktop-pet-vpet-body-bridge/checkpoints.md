@@ -262,3 +262,82 @@
 - “当前主线仍然是 native move direction” 这件事
 - “还需要继续点 native-move-left/right/up/down” 这件事
 
+## Checkpoint 29 - 2026-04-01 Phase 1 Emotion Alias Cleanup
+
+### 当前阶段
+- 阶段 3：继续 phase 1 正式协议维护，不进入 phase 2，也不重开 native move
+
+### 本轮完成内容
+- 在 `VPet.Plugin.AgentBridge/AgentBridgePoller.cs` 中把 graph 解析收口为三层：
+  - 显式 `graph`
+  - stable emotion / expression alias
+  - legacy 近似映射
+- 当前 stable alias 明确保持为：
+  - `think`
+  - `thinking`
+  - `pinch`
+- `shy` 继续只保留为 legacy≈`pinch` 兼容，不升级成新的正式 phase 1 emotion
+- `/dev/control` 已同步更新文案：
+  - `graph` 字段明确为显式优先
+  - `emotion` 字段明确区分正式值与 `shy (legacy≈pinch)`
+- `spec/protocol-phase1.md` 已同步写清这条边界
+- `quick-tests.json` 已补三条 phase 1 emotion 回归项：
+  - `emotion-thinking`
+  - `emotion-pinch`
+  - `emotion-shy-legacy`
+
+### 本轮决策与原因
+- 决策：phase 1 的 emotion alias 继续保持小而明确，避免回到“靠继续堆 alias 承接展示层扩展”的方向
+- 原因：当前主线只需要维护稳定基线；真正的控制面扩张仍然属于冻结中的 phase 2
+
+### 本轮沉淀经验
+- 在 phase 1 里，最容易再次扩散协议面的点不是 move，而是 `emotion.set`
+- 兼容旧调用和值得正式承诺的新语义不是一回事；把 `shy` 显式降级为 legacy 近似，比默默继续把它当正式值更稳
+- `quick-tests.json` 之前对 emotion alias 基本没有单独回归项，这会让协议边界长期只存在于代码和记忆里
+
+### 验证情况
+- 待运行代码级验证：
+  - `python -m compileall backend-agent/app`
+  - `quick-tests.json` JSON 解析校验
+  - `dotnet build 'VPet.Plugin.AgentBridge/VPet.Plugin.AgentBridge.csproj' -c Debug`
+- 若插件 build 失败，仍优先按既有注意事项判断是否为运行中 VPet 锁 DLL
+
+### 下一步
+- 不做真实联调
+- 由你在 `/dev/quick-test` 自己回写：
+  - `emotion-thinking`
+  - `emotion-pinch`
+  - `emotion-shy-legacy`
+- 如果这 3 条稳定，再决定：
+  - 是否将 `emotion -> graph` 这一项从活跃任务里视为已收口
+  - 还是继续保留为“仅在 phase 2 catalog/play 体系下再处理”的开放项
+
+### 可以从活跃上下文中移除的内容
+- “phase 1 的 emotion 边界还只存在于散落硬编码里” 这件事
+
+## Checkpoint 30 - 2026-04-01 Pause Handoff After Phase 1 Emotion Cleanup
+
+### 当前阶段
+- 阶段 3：phase 1 主线稳定维护，native move 继续 paused，phase 2 继续冻结
+
+### 本轮完成内容
+- 新建 handoff：
+  - `handoffs/2026-04-01-017-phase1-emotion-cleanup-pause.md`
+- 更新 handoff 索引的最新入口到：
+  - `2026-04-01-017-phase1-emotion-cleanup-pause.md`
+- 更新根目录继续提示词：
+  - `CONTINUE_VPET_BRIDGE_PROMPT.md`
+- 同步 `state.md` 的最新 handoff 指针
+- 同步 `session-tasks.md`，把 phase 1 emotion alias 的实现收口和待回写测试分开记录
+
+### 本轮决策与原因
+- 决策：当前先以 handoff + continue prompt 的形式冻结本轮上下文，而不是再继续扩实现
+- 原因：当前代码级工作已经收口，剩余主要是用户自己回写真实 quick test 结果
+
+### 下一步
+- 由用户自己在 `/dev/quick-test` 回写：
+  - `emotion-thinking`
+  - `emotion-pinch`
+  - `emotion-shy-legacy`
+- 下轮恢复时优先从新 handoff 和 `CONTINUE_VPET_BRIDGE_PROMPT.md` 开始
+

@@ -222,3 +222,15 @@
 - **原因**：当前 native move 分支的技术状态已经足够形成清晰恢复点，继续推进不再是当前回合目标。
 - **放弃的方案**：在用户明确要求暂停后，继续沿 native move 分支往下修。
 - **影响**：后续若要恢复 native move，直接从 `2026-03-31-016-native-move-direction-paused.md` 继续；未恢复前，不把它视作当前主线阻塞。
+
+## [2026-04-01] 决策：phase 1 的 emotion alias 继续保持小而明确，`shy` 只保留 legacy≈`pinch` 兼容
+- **背景**：当前主线已经回到 phase 1 正式协议维护；活跃任务里还剩 `emotion -> graph` 这一小块，但 mission 同时已经明确“不继续靠扩大 `motion.play / emotion.set` 白名单来承接展示层全控”。
+- **选择**：在 phase 1 内把 emotion 映射边界写清：
+  - 正式 stable alias 继续只认：
+    - `think`
+    - `thinking`
+    - `pinch`
+  - `shy` 不升级成新的正式 emotion，只保留 runtime legacy≈`pinch` 兼容
+- **原因**：这样既能维持当前通过链路的兼容性，也不会把 phase 1 再次推向“继续堆 alias”的旧方向。
+- **放弃的方案**：把 `shy` 继续当成和 `think / pinch` 同等级的正式 emotion，或顺手再扩更多未验证 emotion 词。
+- **影响**：`protocol-phase1.md`、插件映射逻辑、`/dev/control` 和 `quick-tests.json` 现在都以同一条边界表述 phase 1 emotion 能力；后续若要继续扩 emotion 面，只能在 phase 2 体系下重新讨论。

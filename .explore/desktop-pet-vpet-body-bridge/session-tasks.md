@@ -8,5 +8,6 @@
 - [x] 增加最小 sequence / scenario 联调入口
 - [x] 排查标准 18787 启动链路的旧 `uvicorn --reload` 残留进程问题
 - [x] 梳理展示层本体可控范围并产出全控可行性方案文档
-- [ ] 视需要继续完善 `emotion -> graph` 映射
+- [x] 收口 phase 1 的 `emotion -> graph` 边界与回归目录
+- [ ] 由用户回写 `emotion-thinking / emotion-pinch / emotion-shy-legacy` 的真实结果
 - [ ] 视需要进入 phase 2 控制面扩展：`graph.catalog -> graph.play -> behavior.invoke`

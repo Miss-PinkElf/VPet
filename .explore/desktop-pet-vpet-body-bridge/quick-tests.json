@@ -21,7 +21,8 @@
     "当前阶段重点不是再补更多工作态字段，而是确认正式协议和时间线观测是否够用。",
     "如果某条 sequence 含重复事件类型，例如两次 bubble.show，优先结合 last_event_id / last_sequence_name / last_step_index 观察是不是同一条步骤。",
     "native move 分支当前已暂停；除非后续明确重开，否则不要继续把 native.move.direction 当成当前主线测试焦点。",
-    "当前主线基线仍以 phase 1 正式协议为准；如需做回归确认，优先参考 sequence-think-speak-move-touch-speak-recover。"
+    "当前主线基线仍以 phase 1 正式协议为准；如需做回归确认，优先参考 sequence-think-speak-move-touch-speak-recover。",
+    "phase 1 当前正式 emotion alias 以 think / thinking / pinch 为准；shy 只保留 legacy≈pinch 兼容，不作为新增正式语义。"
   ],
   "tests": [
     {
@@ -264,6 +265,66 @@
         "status": "pass",
         "note": "",
         "updated_at": "2026-03-28T13:35:23.879Z"
+      }
+    },
+    {
+      "id": "emotion-thinking",
+      "category": "single-event",
+      "title": "Emotion Thinking",
+      "description": "验证 emotion.set(thinking) 仍稳定落到 think graph。",
+      "goal": "确认 phase 1 正式 emotion alias 不依赖更大范围的 graph 白名单扩张也能稳定工作。",
+      "pass_criteria": [
+        "显示进入 think 相关视觉",
+        "last_event_type=emotion.set"
+      ],
+      "payload": {
+        "type": "emotion.set",
+        "emotion": "thinking"
+      },
+      "result": {
+        "status": "untested",
+        "note": "2026-04-01 新增：phase 1 emotion alias 回归项，等待你在真实 VPet 上回写。",
+        "updated_at": "2026-04-01T00:00:00.000Z"
+      }
+    },
+    {
+      "id": "emotion-pinch",
+      "category": "single-event",
+      "title": "Emotion Pinch",
+      "description": "验证 emotion.set(pinch) 的正式 phase 1 alias。",
+      "goal": "确认 phase 1 仍保留 pinch 这条稳定情绪/graph 映射。",
+      "pass_criteria": [
+        "显示进入 pinch 相关视觉",
+        "last_event_type=emotion.set"
+      ],
+      "payload": {
+        "type": "emotion.set",
+        "emotion": "pinch"
+      },
+      "result": {
+        "status": "untested",
+        "note": "2026-04-01 新增：phase 1 emotion alias 回归项，等待你在真实 VPet 上回写。",
+        "updated_at": "2026-04-01T00:00:00.000Z"
+      }
+    },
+    {
+      "id": "emotion-shy-legacy",
+      "category": "single-event",
+      "title": "Emotion Shy Legacy",
+      "description": "验证 shy 仍作为 legacy 兼容近似落到 pinch，而不是被误当成新的正式 emotion。",
+      "goal": "确认 phase 1 在不扩正式语义面的前提下，仍保留既有 shy 兼容行为。",
+      "pass_criteria": [
+        "表现接近 pinch",
+        "last_event_type=emotion.set"
+      ],
+      "payload": {
+        "type": "emotion.set",
+        "emotion": "shy"
+      },
+      "result": {
+        "status": "untested",
+        "note": "2026-04-01 新增：仅用于验证 legacy≈pinch 兼容，不能把通过结果解读为 phase 1 新增正式 emotion。",
+        "updated_at": "2026-04-01T00:00:00.000Z"
       }
     },
     {

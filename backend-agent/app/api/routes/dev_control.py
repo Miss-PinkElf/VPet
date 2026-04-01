@@ -222,7 +222,7 @@ CONTROL_PAGE_HTML = """
           </label>
 
           <label id="field-graph" class="hidden">
-            graph
+            graph（显式 graph 优先；phase 1 常用值：think / pinch）
             <select id="graph">
               <option value="">无</option>
               <option value="think">think</option>
@@ -232,13 +232,13 @@ CONTROL_PAGE_HTML = """
         </div>
 
         <label id="field-emotion" class="hidden">
-          emotion
+          emotion（phase 1 正式值：think / thinking / pinch；shy 仅 legacy≈pinch）
           <select id="emotion">
             <option value="">无</option>
-            <option value="shy">shy</option>
             <option value="think">think</option>
             <option value="thinking">thinking</option>
             <option value="pinch">pinch</option>
+            <option value="shy">shy (legacy≈pinch)</option>
           </select>
         </label>
 

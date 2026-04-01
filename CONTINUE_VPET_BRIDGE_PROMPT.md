@@ -9,7 +9,7 @@
 2. E:\Learn\Vs\Code\VPet\.explore\desktop-pet-vpet-body-bridge\decision-log.md
 3. E:\Learn\Vs\Code\VPet\.explore\desktop-pet-vpet-body-bridge\checkpoints.md
 4. E:\Learn\Vs\Code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\index.md
-5. E:\Learn\Vs\Code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-31-016-native-move-direction-paused.md
+5. E:\Learn\Vs\Code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-04-01-017-phase1-emotion-cleanup-pause.md
 6. E:\Learn\Vs\Code\VPet\.explore\desktop-pet-vpet-body-bridge\spec\protocol-phase1.md
 7. E:\Learn\Vs\Code\VPet\.explore\desktop-pet-vpet-body-bridge\spec\display-control-surface-and-full-control-plan.md
 8. E:\Learn\Vs\Code\VPet\.explore\desktop-pet-vpet-body-bridge\quick-tests.json
@@ -30,6 +30,16 @@
   - move_complete
   - motion_complete
   - motion_recovered
+- phase 1 的 emotion alias 边界本轮已收口：
+  - 正式 stable alias 继续只认：
+    - think
+    - thinking
+    - pinch
+  - shy 继续只保留 legacy≈pinch 兼容
+- quick-tests.json 已新增 3 条 emotion 回归项：
+  - emotion-thinking
+  - emotion-pinch
+  - emotion-shy-legacy
 - 已新增最小事件关联字段：
   - event_id
   - sequence_name
@@ -78,6 +88,15 @@
    - graph.play
    - behavior.invoke
 8. 每轮结束同步 state.md 和 checkpoints.md；如果有方向性决策，更新 decision-log.md
+
+当前如果只是继续这条主线，优先做：
+1. 不要再扩 emotion alias 面
+2. 不要替我跑真实联调
+3. 让我自己在 `/dev/quick-test` 回写：
+   - emotion-thinking
+   - emotion-pinch
+   - emotion-shy-legacy
+4. 回写后再判断 phase 1 的 `emotion -> graph` 这一小块是否可视为已收口
 
 除非我明确要求，否则不要重新做大范围路线比较；直接在当前 mission 上继续推进和落盘。
 ```

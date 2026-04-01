@@ -345,6 +345,22 @@
 - `move.intent` 的运行时薄兼容要保留多久，是否下一轮直接退到纯文档兼容。
 - `emotion -> graph` 是否需要继续做运行时导出，而不是只靠人工映射。
 - phase 2 的 `graph.catalog / graph.play / behavior.invoke / display.reset / display.report` 继续保持冻结，不作为当前轮阻塞项。
+- 2026-04-01 本轮已先对 phase 1 的 emotion alias 边界做一次最小收口：
+  - 插件把 stable alias 与 legacy 近似映射分层写清
+  - 当前正式 alias 继续只认：
+    - `think`
+    - `thinking`
+    - `pinch`
+  - `shy` 继续只保留 runtime legacy≈`pinch` 兼容
+  - `/dev/control` 已同步把 `shy` 明确标成 legacy≈`pinch`
+  - `quick-tests.json` 已补三条当前阶段 emotion 回归项：
+    - `emotion-thinking`
+    - `emotion-pinch`
+    - `emotion-shy-legacy`
+- 本轮没有：
+  - 扩更多 emotion alias
+  - 进入 phase 2 的 `graph.catalog / graph.play`
+  - 重开 native move 分支
 
 ## 下一步
 - 保持 phase 1 最小协议不扩散，继续以 `spec/protocol-phase1.md` 作为正式承诺边界。
@@ -381,15 +397,21 @@
 - 当前这轮真实结果已经证明：
   - 现版本 `native.move.direction` 还不够可用
   - 但问题已不再抽象，而是明确落在“move 选择策略过宽”
-- 该分支的恢复入口已固定在最新 handoff：
+- 该分支的恢复入口仍保留在历史 handoff：
   - `2026-03-31-016-native-move-direction-paused.md`
 - 当前如果不重开 native move，接下来不需要做任何额外切换动作：
   - 直接把它当作已暂停旁支
   - 后续在 phase 1 主线继续选新的明确子任务即可
+- 当前新增的 phase 1 emotion 回归项无需我替你做真实联调：
+  - 由你自己在 `/dev/quick-test` 回写
+  - 优先顺序：
+    - `emotion-thinking`
+    - `emotion-pinch`
+    - `emotion-shy-legacy`
 - 当上述 phase 1 体验问题收口后，再进入 phase 2，从 `graph.catalog` 开始
 
 ## 最新 handoff
-- [2026-03-31-016-native-move-direction-paused.md](E:\Learn\Vs\Code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-31-016-native-move-direction-paused.md)
+- [2026-04-01-017-phase1-emotion-cleanup-pause.md](E:\Learn\Vs\Code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-04-01-017-phase1-emotion-cleanup-pause.md)
 
 ## 最小活跃上下文摘要
 - 当前 mission 有两条并行但不冲突的主线：
