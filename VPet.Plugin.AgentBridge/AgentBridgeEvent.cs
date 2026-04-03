@@ -33,6 +33,8 @@ namespace VPet.Plugin.AgentBridge
 
         public string Intent { get; set; }
 
+        public string Direction { get; set; }
+
         public double? Dx { get; set; }
 
         public double? Dy { get; set; }

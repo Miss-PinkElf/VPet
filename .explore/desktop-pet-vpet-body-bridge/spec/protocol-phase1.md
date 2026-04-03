@@ -72,7 +72,14 @@
 - `graph` 可选
 
 说明：
-- 只承诺当前已确认映射
+- `graph` 优先于 `emotion`
+- 第一阶段当前承诺的稳定 emotion alias：
+  - `think`
+  - `thinking`
+  - `pinch`
+- `shy` 当前只保留 legacy 近似兼容：
+  - 运行时仍落到 `pinch`
+  - 但不视为新增正式 emotion 语义
 - 不承诺任意语义值都能稳定播放
 
 ### `window.move`

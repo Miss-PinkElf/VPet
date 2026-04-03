@@ -147,6 +147,55 @@
   - 长距离：直接跳位
   - 显式可选：`style=smooth|walk`、`style=snap|teleport`
 - `quick-tests.json` 中所有当前阶段移动测试与两条核心 sequence，现已默认改成 `style=smart`
+- 2026-03-31 本轮已直接开始收口 `window.move(style=smart)` 的体感实现：
+  - 插件内 `smart` 平滑位移已从“固定步数 + 固定步间隔的线性 `MoveWindows(...)` 切片”改为“距离感知总时长 + eased 累进位移”
+  - 该实现仍只使用 `MoveWindows(...)` 做显式位移
+  - 本轮没有把 `DisplayMove()` 或原生 `walk/crawl/fall/climb` move graph 重新绑回 `window.move`
+  - 本轮代码级验证已完成：
+    - `dotnet build 'VPet.Plugin.AgentBridge/VPet.Plugin.AgentBridge.csproj' -c Debug` 通过
+    - `.explore/desktop-pet-vpet-body-bridge/quick-tests.json` 已通过 JSON 解析校验
+  - 你对这轮 eased `smart move` 的最新真实反馈是：
+    - “其实还是单纯的移动，机械滑块感，没有调用任何动作”
+  - 这次反馈已确认：
+    - 问题不再是 pure move 曲线是否够顺
+    - 而是 `window.move` 这条纯显式位移路径天然不会带出任何原生 walk 动作层
+  - 当前最窄的原生 walk 探索入口其实已经存在于桥接里：
+    - `motion.play(move)` -> `Main.DisplayMove()`
+  - 因此下一步不需要先扩新正式协议，就能先验证原生 move system 是否值得单独暴露
+  - 你对 `motion.play(move)` 的最新真实反馈是：
+    - 会触发原生移动系统
+    - 可能是爬行，也可能是走路
+    - 到屏幕边缘会贴墙爬
+    - 还可能出现斜着飞行
+  - 这与源码观察一致：
+    - 原生 move system 不是“播一个固定走路动画”
+    - 而是按当前边缘位置、方向、角色 mode 与兼容 move 规则，在 `walk/crawl/climb/fall` 之间切换
+  - 本轮进一步确认了导致“随机动作感”的直接代码原因：
+    - `Main.DisplayMove` 实际绑定到 `DisplayToMove()`
+    - `DisplayToMove()` 会从 `Core.Graph.GraphConfig.Moves` 随机起点遍历，挑出第一个 `Triggered(this)` 为真的 move 并执行
+    - 因此 `motion.play(move)` 天然是“当前环境下可触发的一条原生 move”，而不是“固定 walk graph”
+  - 本轮还确认了一个很关键的现成入口：
+    - 原生控制台 `winConsole` 已经提供按方向选 move 的 dev helper
+    - 它直接从 `GraphConfig.Moves` 里按 `SpeedX / SpeedY` 符号和 `Checked(...)` 过滤后调用 `move.Display(main)`
+  - 本轮已将这条控制台思路正式接进 bridge 的 dev-only 入口：
+    - `native.move.direction(left|right|up|down)`
+    - 当前实现直接复用“按 `SpeedX / SpeedY` 符号 + `Checked(...)` 过滤”的最小方向约束
+  - 本轮实现已实际落地到代码：
+    - `backend-agent/app/schemas/events.py`
+    - `backend-agent/app/services/behavior_policy_engine.py`
+    - `backend-agent/app/api/routes/dev_control.py`
+    - `VPet.Plugin.AgentBridge/AgentBridgeEvent.cs`
+    - `VPet.Plugin.AgentBridge/AgentBridgePoller.cs`
+  - 本轮代码级验证结果：
+    - `python -m compileall backend-agent/app` 通过
+    - `quick-tests.json` 已通过 JSON 解析校验
+    - 插件完整 `dotnet build` 仍卡在复制到 `mod/1200_AgentBridge/plugin/` 时 DLL 被运行中的 VPet 锁住
+    - 这与当前 mission 既有注意事项一致：如果要完成插件落 DLL，必须先停掉 VPet
+  - 当前角色 `vup` 的 move graph 本体已明确包含：
+    - `walk.left / walk.right / walk.left.slow / walk.right.slow / walk.left.faster / walk.right.faster`
+    - `crawl.left / crawl.right`
+    - `climb.left / climb.right / climb.top.left / climb.top.right`
+    - `fall.left / fall.right`
 - 当前已经确认一个更核心的编排问题：
   - 现有 sequence/scenario 仍是固定 `delay_ms` 编排
   - 没有真正等待当前动作/位移完成后再进入下一步
@@ -251,62 +300,118 @@
 - 展示层全控专题应作为下一阶段扩展设计，和 phase 1 最小协议保持分离。
 
 ## 待解决的问题
-- 2026-03-31 你回写的 6 步 story sequence 结果为 `mixed`：
-  - 现象：整体仍不连贯，存在“上一个动作还没做完，就继续下一个”的突兀感
-- 当前 `window.move(style=smart)` 虽已可控，但“走路体感生硬”仍是已确认体验问题：
-  - 这不是早期“乱走/乱爬”协议错误的回归
-  - 而是 phase 1 显式位移与原生 move graph 分层后的视觉质感缺口
-- 当前还存在“动作播放停止 / 动作结束判断不够稳”的问题：
-  - 当前 `motion_complete / motion_recovered` 已足以把更长 story sequence 收口到可接受范围
-  - 后续若再扩更长链路，仍可继续复用这组门控
+- 当前 `window.move(style=smart)` 的问题已经进一步定性：
+  - 它仍然只是纯窗口位移
+  - 即使 eased 后，依然不会有“走路动作被调用”的观感
+- 当前已确认：
+  - `window.move` 纯位移路径本身无法补出原生 walk 体感
+  - 如果还想要“看起来像走路”，下一步必须探索一个和 `window.move(dx, dy)` 正式语义分开的原生 walk / native move 能力
+- 当前尚未确认的是：
+  - `motion.play(move)` 这个现有入口虽然足以进入原生 move system，但是否能被进一步约束成“更可控的原生 walk 入口”
+  - 如果要继续收口，最小问题已变成：
+    - 能否在不改写 `window.move(dx, dy)` 语义的前提下，缩小原生 move 的随机性 / 环境依赖
+  - 如果继续往前走，dev-only 原生 move 入口应该优先做哪一层：
+    - 方向层：`left / right / up / down`
+    - graph 层：`walk.right / crawl.left / climb.top.right`
+- 本轮实现已完成第一优先的最小版：
+  - backend-agent 新增 dev-only 事件：
+    - `native.move.direction`
+  - 插件新增消费逻辑：
+    - `left` -> `SpeedX < 0 && Checked(...)`
+    - `right` -> `SpeedX > 0 && Checked(...)`
+    - `up` -> `SpeedY < 0 && Checked(...)`
+    - `down` -> `SpeedY > 0 && Checked(...)`
+  - `/dev/control` 已新增该事件类型与 `direction` 选择
+  - `quick-tests.json` 已新增四条方向测试：
+    - `native-move-left`
+    - `native-move-right`
+    - `native-move-up`
+    - `native-move-down`
+  - 你对这 4 条方向测试的最新真实结果是：
+    - `native-move-left = fail`
+      - 会先跑到屏幕上方，再贴顶向左爬
+    - `native-move-right = fail`
+      - 会先跑到屏幕上方，再贴顶向右爬
+    - `native-move-up = fail`
+      - 会先跑到屏幕左边，再贴左向上爬
+    - `native-move-down = fail`
+      - 会先跑到屏幕左边，再贴左向下爬
+  - 这与源码直接吻合的根因是：
+    - 当前实现只按 `SpeedX / SpeedY + Checked(...)` 过滤
+    - 但 `move.Display(main)` 在 `LocateType` 存在时会先把窗口 reposition 到对应边缘，再开始 move
+    - 因此当前最小方向约束会被 `climb.*` 这类带 `LocateType` 的 move 抢占
+- 当前 `motion_complete / motion_recovered` 已足以把更长 story sequence 收口到可接受范围：
+  - 它们不再是本轮主阻塞
 - `move.intent` 的运行时薄兼容要保留多久，是否下一轮直接退到纯文档兼容。
 - `emotion -> graph` 是否需要继续做运行时导出，而不是只靠人工映射。
-- 当前这组门控是否直接固化为第一阶段默认示例与测试目录，还是还要再做一轮更长 sequence 扩测。
-- 是否要把完成门控继续扩到更多步骤，例如 `bubble.show` 生命周期或 `mode.switch(normal)` 恢复态。
-- 新增的 `sequence-think-speak-move-touch-speak-recover` 真实复测结果如何。
-- 是否进入 phase 2 控制面扩展，实现：
-  - `graph.catalog`
-  - `graph.play`
-  - `behavior.invoke`
-  - `display.reset`
-  - `display.report`
-- catalog 是否还要附带：
-  - `animat_types`
-  - `mode_types`
-  - `safe_loop`
-  - `graph_type`
-- 贴边隐藏 / 探头 / 恢复态应优先做成独立行为，还是先只暴露底层 graph 点播能力。
+- phase 2 的 `graph.catalog / graph.play / behavior.invoke / display.reset / display.report` 继续保持冻结，不作为当前轮阻塞项。
+- 2026-04-01 本轮已先对 phase 1 的 emotion alias 边界做一次最小收口：
+  - 插件把 stable alias 与 legacy 近似映射分层写清
+  - 当前正式 alias 继续只认：
+    - `think`
+    - `thinking`
+    - `pinch`
+  - `shy` 继续只保留 runtime legacy≈`pinch` 兼容
+  - `/dev/control` 已同步把 `shy` 明确标成 legacy≈`pinch`
+  - `quick-tests.json` 已补三条当前阶段 emotion 回归项：
+    - `emotion-thinking`
+    - `emotion-pinch`
+    - `emotion-shy-legacy`
+- 本轮没有：
+  - 扩更多 emotion alias
+  - 进入 phase 2 的 `graph.catalog / graph.play`
+  - 重开 native move 分支
 
 ## 下一步
 - 保持 phase 1 最小协议不扩散，继续以 `spec/protocol-phase1.md` 作为正式承诺边界。
 - 当前继续留在 phase 1，不进入 phase 2。
-- 先收口三类已经暴露出来的问题边界：
-  - 6 步 story sequence 的完成门控已基本收口
-  - `window.move(style=smart)` 可控但体感生硬，需重新定义“位移”和“原生 walk 表现”的关系
-  - “所有动画做映射”不再作为 phase 1 阻塞处理，而转入 phase 2 的 `graph.catalog -> graph.play -> behavior.invoke`
-- phase 1 收口优先顺序：
-  - 当前优先转向“走路体感生硬”
-  - 暂不先扩全量动画 alias
-- 本轮已先做最小实现收口：
-  - `motion_complete` 改为“离开动作显示态后还要稳定一小段时间”才算完成
-  - 6 步 story sequence 中 `touch_head` 步骤的 `settle_ms` 已从 `120` 提高到 `320`
-  - 6 步 story sequence 中 `touch_head` 步骤已进一步切到：
-    - `wait_for=motion_recovered`
-    - 用于等待动作退出后回到更稳定的展示态
-- 你最新真实反馈是：
-  - “好了一点点，不是那么突兀了”
-- 你进一步补充的最新体感是：
-  - “后面的再说话、回复，感觉像动作没有做完就做了后面两步”
-- 你最终最新确认是：
-  - “还行流畅度可以，只有一点点卡顿，可以接受”
-- 当前判断：
-  - `motion_complete -> motion_recovered -> 尾段 settle` 这条收口方向成立
-  - 当前 6 步 story sequence 已可作为 phase 1 的可接受基线
-  - 下一步不再继续死抠这条 sequence，而应转向走路体感问题
+- 当前 native move 分支先视为 paused：
+  - 已完成记录
+  - 暂不继续实现
+  - 暂不继续测试
+- 当前主线切回：
+  - phase 1 正式协议与现有稳定基线维护
+- 本轮后的判断已经固定：
+  - 不再继续优先微调 pure `window.move` 曲线
+  - 也不把 `DisplayMove()` 重新绑回 `window.move`
+- 当前 focus test 的真实结果已更新：
+  - `quick-tests.json -> move-smart-medium-right-80 = fail`
+- 当前新的 focus test 已切到：
+  - `quick-tests.json -> motion-native-move = mixed`
+- 当前探索后的推荐顺序已收口为：
+  - 第一优先：如果只要最小可用，先做 `native.move.direction`
+    - 直接复用控制台里现成的 `SpeedX / SpeedY + Checked(...)` 过滤方式
+    - 优点是最小改动、最贴近现有源码
+    - 缺点是到边缘仍可能触发 climb/fall 一类兼容 move
+  - 第二优先：如果要更可控，做 `native.move.graph`
+    - 直接按 `GraphConfig.Moves` 里的 `Graph` 名精确选项后调用 `move.Display(main)`
+    - 优点是可以稳定区分 `walk.right`、`crawl.left`、`fall.right`
+    - 缺点是 graph 名明显更角色相关，只适合作为 dev-only 能力
+- 上述探索现在已经转为最小实现：
+  - 当前新的真实联调 focus 应切到：
+    - `quick-tests.json -> native-move-right`
+  - 然后依次验证：
+    - `native-move-left`
+    - `native-move-up`
+    - `native-move-down`
+- 当前这轮真实结果已经证明：
+  - 现版本 `native.move.direction` 还不够可用
+  - 但问题已不再抽象，而是明确落在“move 选择策略过宽”
+- 该分支的恢复入口仍保留在历史 handoff：
+  - `2026-03-31-016-native-move-direction-paused.md`
+- 当前如果不重开 native move，接下来不需要做任何额外切换动作：
+  - 直接把它当作已暂停旁支
+  - 后续在 phase 1 主线继续选新的明确子任务即可
+- 当前新增的 phase 1 emotion 回归项无需我替你做真实联调：
+  - 由你自己在 `/dev/quick-test` 回写
+  - 优先顺序：
+    - `emotion-thinking`
+    - `emotion-pinch`
+    - `emotion-shy-legacy`
 - 当上述 phase 1 体验问题收口后，再进入 phase 2，从 `graph.catalog` 开始
 
 ## 最新 handoff
-- [2026-03-31-015-phase1-sequence-acceptable-walk-next.md](E:\Learn\Vs\Code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-03-31-015-phase1-sequence-acceptable-walk-next.md)
+- [2026-04-01-017-phase1-emotion-cleanup-pause.md](E:\Learn\Vs\Code\VPet\.explore\desktop-pet-vpet-body-bridge\handoffs\2026-04-01-017-phase1-emotion-cleanup-pause.md)
 
 ## 最小活跃上下文摘要
 - 当前 mission 有两条并行但不冲突的主线：
@@ -316,7 +421,7 @@
     - `sequence-think-speak-move-touch-speak-recover = pass`
     - 仅剩一点点卡顿，但已在可接受范围内
   - 当前 phase 1 的真实阻塞已收口为：
-    - 走路体感仍然生硬
+    - native move 分支当前已暂停，等待未来是否重开
 - phase 2 预研主线：
   - 已确认展示层本体可控面远大于当前桥接白名单
   - 已产出“展示层可控范围与全控方案”专题文档

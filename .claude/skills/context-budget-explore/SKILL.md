@@ -1,18 +1,11 @@
 ---
 name: context-budget-explore
 description: |
-  探索工作流管理器，用于长期探索、质检工作流、agent 闭环、迭代优化等场景，解决上下文过长导致的费用高、速度慢问题。
-  外层管理 workflow/todolist + 经验沉淀，内层通过 superspec 走开发流程，达到上下文阈值时自动触发 session-handoff 生成交接文档，支持跨对话续接。
-  当用户要做以下事情时，积极触发本 skill：
-  - 探索性工作（质检工作流、agent 闭环、迭代优化、方案对比）
-  - 维护 todolist/workflow、记录进度、沉淀经验
-  - 提到"上下文太长"、"跨对话继续"、"记录进度"、"太慢了"、"太贵了"
-  - 长时间迭代优化、反复调试某个功能
-  - 需要跨多轮对话持续推进的任务
-  即使用户没有明确说"用 context-budget-explore"，只要是探索性、迭代性的长任务，也应该主动使用。
+  探索、需求、实施一体化的上下文预算工作流管理器。适用于长期探索、需求澄清、方案对比、迭代开发、质检闭环、跨对话续接、上下文过长、需要记录过程与决策的任务。优先在 Claude Code 中使用，但也可作为通用 skill：把阶段、任务、决策、经验、checkpoint、handoff 全部沉淀到仓库根目录 `.explore/`，让 AI 在长任务中始终有记录、有恢复点、有清晰过程。
+  只要用户提到“探索一下”“先梳理需求”“边做边记录”“跨对话继续”“保存进度”“上下文太长”“这个任务会做很久”“想把过程沉淀下来”，都应该主动触发本 skill。
 author: Claude Code
-version: 2.0.0
-date: 2026-03-24
+version: 3.1.0
+date: 2026-03-31
 allowed-tools:
   - TaskCreate
   - TaskGet
@@ -25,406 +18,118 @@ allowed-tools:
   - Grep
   - Bash
   - AskUserQuestion
-  - Skill
   - Agent
 ---
 
-# 探索工作流管理器
-
-## 解决什么问题
-
-探索性工作（质检工作流、agent 闭环、迭代优化）很容易陷入以下困境：
-
-- 上下文越来越长 → 速度变慢、费用增加
-- 多个并行线索堆在一个对话里 → 混乱
-- 做过的决策没记下来 → 反复讨论同一个问题
-- 优化经验没沉淀 → 下次还踩同样的坑
-- 对话中断后 → 无法快速恢复
-
-本 skill 的核心理念：**活跃上下文保持精简，持久化状态保持丰富**。
-
-## 架构：三层协作
-
-```
-┌──────────────────────────────────────────────┐
-│  context-budget-explore（外层管理器）           │
-│  职责：workflow 管理 / 经验沉淀 / 上下文预算     │
-│                                              │
-│  ┌────────────────────────────────────┐      │
-│  │  superspec（内层流程引擎）            │      │
-│  │  职责：具体任务走 propose → apply     │      │
-│  │  每完成一个迭代 → 自动回报外层         │      │
-│  └────────────────────────────────────┘      │
-│                                              │
-│  ┌────────────────────────────────────┐      │
-│  │  session-handoff（续接引擎）          │      │
-│  │  职责：上下文过长时生成交接文档         │      │
-│  │  下次对话通过 handoff 快速恢复         │      │
-│  └────────────────────────────────────┘      │
-└──────────────────────────────────────────────┘
-```
-
-- **外层**负责全局进度、经验沉淀、上下文预算
-- **内层 superspec**负责每个具体开发任务的流程（classify → align → propose → apply → verify）
-- **session-handoff**在上下文接近极限时自动生成交接文档
-
-## 四层记忆模型
-
-1. **执行层（TaskList）** — 当前会话的 todolist，跟踪进行中的任务
-2. **状态层（持久化文件）** — workflow.md / state.md 等，跨 checkpoint 存活
-3. **决策层（经验日志）** — decision-log.md / learnings.md，可复用的洞察
-4. **回忆层（跨对话记忆）** — handoff.md + session-handoff 交接文档
-
-## 工作流程
+# 上下文预算探索工作流
 
-### 阶段一：启动（Mission Init）
-
-收到探索性任务时：
+## 核心定位
 
-1. **定义任务边界**
-   - 目标是什么
-   - 范围边界（做什么/不做什么）
-   - 成功标准
-   - 预估迭代次数（粗略即可）
-
-2. **创建执行脚手架**
-   - 在 TaskList 创建任务列表（保持精简，5-8 个有意义的任务）
-   - 确定工作目录，创建持久化文件
-
-3. **初始化持久化文件**
-   - 在用户指定的工作目录下创建文件（默认 `.codex/explore/`）
-   - 如果是续接任务，先读取已有的 handoff.md 恢复状态
+这个 skill 是一个位于 spark-workflow 外层的 mission/workflow 管理器。
 
-### 阶段二：迭代执行（Bounded Loop）
+它负责：
 
-每个迭代遵循这个闭环：
+1. 管理任务全生命周期，而不是只盯当前一轮对话
+2. 把需求、探索、实施、验证、交接过程沉淀到仓库根目录 `.explore/`
+3. 在需要时调用内置 `skills/spark-workflow/SKILL.md` 处理具体子任务
+4. 在上下文过长、阶段结束或准备暂停时调用内置 `skills/session-handoff/SKILL.md` 生成交接
 
-```
-┌→ 选择子目标（从 TaskList 取下一个）
-│
-├→ 使用 superspec 执行
-│   - 如果是开发任务 → superspec 的 propose → apply → verify
-│   - 如果是探索任务 → 调研 → 总结 → 记录
-│
-├→ 迭代回报（每完成一轮自动执行）
-│   - 更新 state.md（当前状态）
-│   - 追加 decision-log.md（本轮决策）
-│   - 追加 learnings.md（本轮经验）
-│   - 更新 TaskList（标记完成，发现新任务则添加）
-│
-├→ 上下文预算检查
-│   - 如果对话已经很长 → 触发 checkpoint
-│   - 如果接近极限 → 触发 session-handoff
-│
-└→ 进入下一个迭代
-```
+一句话：**spark-workflow 负责把子任务做对，本 skill 负责让整件事有过程、有记录、有恢复点。**
 
-### 阶段三：Checkpoint（阶段性保存）
+## 适用范围
 
-以下时机触发 checkpoint：
+优先用于：
 
-- 一个子任务完成
-- 切换到新的子任务前
-- 做了重要决策后
-- 感觉上下文开始变长变重时
-- 用户主动要求
+- 需求还不清楚，需要先探索、梳理、对齐
+- 要做方案比较、代码调查、路径选择
+- 一个任务会持续多轮，希望保留 workflow / todo / 决策 / 经验
+- 既要做需求，又要做实现，还要保存完整过程
+- 需要跨对话继续推进
+- 用户明确提到“上下文太长”“太慢了”“先保存一下”“下次继续”
 
-Checkpoint 输出格式：
+如果只是一次性的小修小改，且没有持续记录需求，可以不触发本 skill。
 
-```markdown
-## Checkpoint [编号] - [日期时间]
-### 当前阶段
-...
+## 环境偏好
 
-### 本轮完成了什么
-- ...
+- Claude Code 中优先用 `TaskCreate / TaskUpdate / TaskList` 管执行层，用 `Read / Write / Edit / Glob / Grep` 管持久化，用 `Agent` 做并行探索或拆分执行。
+- 若缺少 TaskList、Agent 或 Bash，则退化为 `session-tasks.md` + `.explore/` 状态文件；工具能力不同，但工作流与落盘结构保持一致。
 
-### 本轮做的决策
-- 决策：...
-- 原因：...
+## 默认工作目录
 
-### 沉淀的经验
-- ...
+默认工作区为仓库根目录 `.explore/`，每个任务对应 `.explore/<mission-slug>/`。
 
-### 待解决的问题
-- ...
+启动或恢复任务前，先读取：
 
-### 下一步
-- ...
+- `references/workspace-and-templates.md`
 
-### 可以从活跃上下文中移除的内容
-- ...（这一项必填，明确标出哪些信息不再需要留在对话中）
-```
+## 真相源
 
-### 阶段四：上下文预算管理
+建立 mission 工作区后，以 `.explore/<mission>/` 内持久化文件为准；聊天记录只用于辅助理解，不是最终事实来源。
 
-**预算信号判断**（不需要精确计数，通过以下信号判断）：
+优先信任：
 
-- 对话轮次已经超过 15-20 轮 → 考虑 checkpoint
-- 开始反复解释之前已经讨论过的内容 → 需要 checkpoint
-- 单次回复开始变慢 → 上下文可能过长
-- 用户说"太慢了"/"太贵了" → 立即触发
+- `state.md`
+- `workflow.md`
+- `decision-log.md`
+- `learnings.md`
+- `spec/` 下的 proposal / design / tasks
+- 最新 handoff
 
-**预算控制手段**：
+## 路由规则
 
-1. **轻度压缩**：在回复中只引用结论，不重复推导过程
-2. **中度压缩**：创建 checkpoint，明确标出可以遗忘的内容
-3. **重度压缩**：触发 session-handoff，生成完整交接文档，建议用户开新对话
+| 路由 | 场景 | 前置条件 | 读取 | 外层更新 |
+|------|------|----------|------|----------|
+| 一 | 纯探索 / 需求梳理 / 方案比较 | 无 | `skills/spark-workflow/SKILL.md` | `workflow.md` / `state.md` / `decision-log.md` / `learnings.md` |
+| 二 | 方向已确定，产出 proposal / design / tasks | 路由一已完成，或需求已足够清晰 | `skills/spark-workflow/SKILL.md` | `spec/` 目录与 `state.md` |
+| 三 | 已批准，进入实施与验证 | `spec/proposal.md` 和 `spec/tasks.md` 已存在，且已获用户批准 | `skills/spark-workflow/SKILL.md` | 按 `spec/tasks.md` 推进，并持续回写状态文件 |
+| 四 | 需要 handoff / resume | 无 | `skills/session-handoff/SKILL.md` | `handoffs/` 与 `state.md` |
 
-### 阶段五：跨对话续接
+### 路由强制顺序
 
-当需要跨对话时：
+- Mission Init 完成后，首轮 Bounded Loop 必须先走路由一或路由二，进入 spark-workflow 的 Align 阶段。
+- 路由三有前置门禁：`spec/proposal.md` 和 `spec/tasks.md` 必须已存在且已获用户批准；没有 spec 就写代码是本 skill 最严重的反模式。
+- 即使用户给出的需求文档已经很详细，也至少要走一次 Mini Align 做确认，而不是直接进入实施。
 
-1. **生成交接文档**：调用 `session-handoff` skill，生成标准交接文档
-   - 交接文档会包含：当前目标、进度、决策、下一步
-   - 存储在 `.claude/handoffs/` 目录
+## 标准流程概览
 
-2. **同时更新持久化文件**：
-   - 更新 handoff.md（精简版，快速恢复用）
-   - 更新 state.md（完整状态）
-   - 确保 learnings.md 是最新的
+| 阶段 | 名称 | 核心动作 |
+|------|------|----------|
+| 0 | Classify | 判断请求类型，选择路由，并明确告知用户 |
+| 1 | Mission Init | 定义目标/范围/成功标准，初始化 mission 工作区 |
+| 2 | Bounded Loop | 每轮推进一个子目标，并在结束时回写状态文件 |
+| 3 | Checkpoint | 阶段切换、关键决策或上下文变重时写 checkpoint |
+| 4 | 上下文预算控制 | 轻度精简 -> 中度 checkpoint -> 重度 handoff |
+| 5 | Handoff / Resume | 创建交接或从最新 handoff 恢复 |
 
-3. **恢复时**：
-   - 用户在新对话中说"继续上次的探索"或类似的话
-   - 读取最新的 handoff.md 和 state.md
-   - 恢复 TaskList
-   - 从上次的 next step 继续
+进入具体阶段执行时，读取：
 
-## 自动经验沉淀机制
+- `references/phases-and-rules.md`
 
-这是本 skill 的核心差异化能力。每次迭代完成后，自动提取并记录：
+## 硬性规则
 
-### 记录什么
+1. 默认工作区就是仓库根目录 `.explore/`
+2. 一个 mission 可以有多次 handoff，必须放在该 mission 的 `handoffs/` 目录
+3. 主 skill 不依赖外部 spark-workflow 或外部 session-handoff，只读取当前 skill 目录内子 skills
+4. 日常输出保持短，不要每轮都写大总结
+5. 已存在持久化文件时优先更新，而不是不断新建同类文件
+6. 如果记录与当前仓库事实冲突，以当前事实为准，并回写修正
+7. 内层执行完成后，必须回到外层更新记录，再进入下一轮
+8. Mission Init 后首轮必须走 Align，不能跳过需求对齐直接写代码
+9. `spec/proposal.md` 和 `spec/tasks.md` 未创建或未获用户批准前，禁止进入路由三实施
 
-```markdown
-# learnings.md 追加格式
+## 建议输出格式
 
-## [日期] 第 N 轮迭代经验
+平时只输出：当前阶段、当前活跃任务、是否需要 checkpoint / handoff、刚更新了哪些文件、下一步。
 
-### 有效的做法
-- ...（什么方法奏效了，为什么）
+只有在 checkpoint 或 handoff 时，才输出完整阶段报告。
 
-### 无效的做法
-- ...（什么方法失败了，为什么）
+## 读取顺序
 
-### 降低成本/延迟的技巧
-- ...
+启动或恢复 mission 时，按需分层读取：
 
-### 导致上下文膨胀的行为
-- ...
-
-### 可复用的策略
-- ...
-
-### 下次要避免的坑
-- ...
-```
-
-### 何时沉淀
-
-- 每完成一个 superspec 的 apply → verify 周期
-- 每次 debug 成功解决问题后
-- 每次方案对比做出选择后
-- 每次 checkpoint 时
-
-### 经验复用
-
-- 每次开始新迭代前，快速浏览 learnings.md，避免重复踩坑
-- 如果某个经验被反复引用（3次以上），建议用户考虑将其固化为规范或 skill
-
-## 与 superspec 的集成
-
-当内层任务需要走开发流程时：
-
-1. **外层** 选定子目标，创建任务上下文
-2. **调用 superspec**：`/superspec` 走标准流程
-   - classify → align → propose → apply → verify
-3. **superspec 完成后**，回到外层：
-   - 外层收集本轮产出
-   - 更新 state.md
-   - 追加 learnings.md
-   - 检查上下文预算
-   - 决定下一个子目标
-
-关键点：superspec 负责"怎么做好这个具体任务"，外层负责"做哪个任务、进度如何、学到了什么"。
-## 与 session-handoff 的集成
-
-触发条件（满足任一）：
-
-- 对话明显过长，回复开始变慢
-- 用户说"先到这"、"下次继续"、"保存进度"
-- 一个大阶段完成，适合切换对话
-- 外层主动判断需要切换
-
-触发时：
-
-1. 先创建本 skill 的 checkpoint
-2. 更新所有持久化文件
-3. 调用 session-handoff 生成标准交接文档
-4. 告知用户：交接文档位置 + 下次如何恢复
-
-## 持久化文件模板
-
-### `workflow.md`
-```markdown
-# 探索工作流
-
-## 任务目标
-...
-
-## 范围边界
-- 范围内：...
-- 范围外：...
-
-## 成功标准
-- ...
-
-## 阶段规划
-1. ...
-2. ...
-3. ...
-
-## 当前阶段
-阶段 X：...
-
-## 退出条件
-- ...
-```
-
-### `state.md`
-```markdown
-# 当前状态
-
-## 当前阶段
-...
-
-## 已确认的事实
-- ...
-
-## 工作假设
-- ...
-
-## 待解决的问题
-- ...
-
-## 下一步
-- ...
-
-## 最小活跃上下文摘要
-（用最少的文字描述当前需要记住的核心信息）
-...
-```
-
-### `decision-log.md`
-```markdown
-# 决策日志
-
-## [日期] 决策：...
-- **背景**：...
-- **选择**：...
-- **原因**：...
-- **放弃的方案**：...
-- **影响**：...
-```
-
-### `learnings.md`
-```markdown
-# 经验沉淀
-
-## [日期] 第 N 轮迭代
-
-### 有效的做法
-- ...
-
-### 无效的做法
-- ...
-
-### 可复用的策略
-- ...
-
-### 要避免的坑
-- ...
-```
-
-### `handoff.md`
-```markdown
-# 交接文档
-
-## 当前目标
-...
-
-## 当前进度
-...
-
-## 关键文件/产物
-- ...
-
-## 已做的决策（摘要）
-- ...
-
-## 立即要做的下一步
-- ...
-
-## 恢复指引
-1. 读取本文件了解上下文
-2. 读取 state.md 了解详细状态
-3. 读取 learnings.md 了解历史经验
-4. 从"立即要做的下一步"继续
-```
-
-## 输出规范
-
-日常输出保持精简，包含：
-
-- 当前阶段
-- 活跃任务
-- 是否需要 checkpoint
-- 哪个持久化文件需要更新
-- 下一步建议
-
-不要在没有必要时输出大段总结。只在 checkpoint 时输出完整的阶段性报告。
-
-## 验证标准
-
-本 skill 运作良好的标志：
-
-- 对话不再重复解释旧的结论
-- 从 handoff.md 或 state.md 可以快速恢复进度
-- 决策可以从 decision-log.md 快速查到，不需要翻聊天记录
-- 下一步行动始终明确
-- 用户可以安全地暂停，下次以最小成本继续
-- 每次迭代的经验都有记录，不会重复犯错
-
-## 示例场景
-
-### 场景一：质检工作流迭代优化
-
-用户说：
-> 我们要做一个质检闭环，会一直迭代优化，顺便把经验沉淀下来。
-
-响应：
-1. 创建 TaskList：[定义质检规则] → [实现检测逻辑] → [测试验证] → [优化调整] → [沉淀经验]
-2. 初始化 workflow.md、state.md、learnings.md
-3. 第一个任务用 superspec 走流程
-4. 每完成一轮：更新 state + 追加 learnings
-5. 上下文变长时：checkpoint → 必要时 session-handoff
-
-### 场景二：跨对话继续
-
-用户说：
-> 继续上次的质检优化工作。
-
-响应：
-1. 读取 `.codex/explore/handoff.md`
-2. 读取 `state.md` 恢复详细状态
-3. 读取 `learnings.md` 回顾历史经验
-4. 恢复 TaskList
-5. 从 handoff 中的"下一步"继续
-
-## 注意事项
-
-- 持久化文件优先更新已有文件，不要不断创建新文件
-- checkpoint 要精简，不是完整的会议纪要
-- learnings.md 记录的是可复用的经验，不是事件日志
-- 如果某个经验已经稳定且被反复验证，考虑写入项目的 CLAUDE.md 或提取为独立 skill
-- 所有文档使用中文
+1. `references/workspace-and-templates.md`
+2. 当前 mission 的 `state.md`
+3. 最新 handoff
+4. 当前 mission 的 `workflow.md` 或 `learnings.md`（仅在需要补充上下文时）
+5. `references/phases-and-rules.md`
+6. `skills/spark-workflow/SKILL.md` 或 `skills/session-handoff/SKILL.md`

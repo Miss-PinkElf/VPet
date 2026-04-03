@@ -49,6 +49,11 @@ class WindowMoveEvent(BasePetEvent):
     style: Optional[str] = Field(default=None, max_length=40)
 
 
+class NativeMoveDirectionEvent(BasePetEvent):
+    type: Literal['native.move.direction'] = 'native.move.direction'
+    direction: Literal['left', 'right', 'up', 'down']
+
+
 PetEvent = Union[
     BubbleShowEvent,
     EmotionSetEvent,
@@ -56,11 +61,12 @@ PetEvent = Union[
     ModeSwitchEvent,
     MoveIntentEvent,
     WindowMoveEvent,
+    NativeMoveDirectionEvent,
 ]
 
 
 class DevEventRequest(BaseModel):
-    type: Literal['bubble.show', 'emotion.set', 'motion.play', 'mode.switch', 'move.intent', 'window.move']
+    type: Literal['bubble.show', 'emotion.set', 'motion.play', 'mode.switch', 'move.intent', 'window.move', 'native.move.direction']
     text: Optional[str] = Field(default=None, max_length=2000)
     duration_ms: int = Field(default=5000, ge=1000, le=20000)
     emotion: Optional[str] = Field(default=None, max_length=80)
@@ -73,6 +79,7 @@ class DevEventRequest(BaseModel):
     dx: float = Field(default=0)
     dy: float = Field(default=0)
     style: Optional[str] = Field(default=None, max_length=40)
+    direction: Optional[Literal['left', 'right', 'up', 'down']] = None
 
 
 class DevEventResponse(BaseModel):

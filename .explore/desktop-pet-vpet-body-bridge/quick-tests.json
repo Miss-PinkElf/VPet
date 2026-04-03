@@ -20,7 +20,9 @@
     "优先比较事件触发后的短时间窗口状态变化，不要用长时间窗口混入 VPet 自主移动噪声。",
     "当前阶段重点不是再补更多工作态字段，而是确认正式协议和时间线观测是否够用。",
     "如果某条 sequence 含重复事件类型，例如两次 bubble.show，优先结合 last_event_id / last_sequence_name / last_step_index 观察是不是同一条步骤。",
-    "当前优先点击验证：sequence-think-speak-move-touch-speak-recover"
+    "native move 分支当前已暂停；除非后续明确重开，否则不要继续把 native.move.direction 当成当前主线测试焦点。",
+    "当前主线基线仍以 phase 1 正式协议为准；如需做回归确认，优先参考 sequence-think-speak-move-touch-speak-recover。",
+    "phase 1 当前正式 emotion alias 以 think / thinking / pinch 为准；shy 只保留 legacy≈pinch 兼容，不作为新增正式语义。"
   ],
   "tests": [
     {
@@ -92,6 +94,29 @@
       }
     },
     {
+      "id": "move-smart-medium-right-80",
+      "category": "single-event",
+      "title": "Smart 中距右移体感",
+      "description": "专门观察 style=smart 在中短距离下的走位体感。",
+      "goal": "确认 phase 1 的显式位移仍然独立于原生 move graph，但不再呈现明显的匀速滑块感。",
+      "pass_criteria": [
+        "不是瞬移",
+        "不是明显的匀速机械分片",
+        "体感更接近自然走位而不是线性拖窗"
+      ],
+      "payload": {
+        "type": "window.move",
+        "dx": 80,
+        "dy": 0,
+        "style": "smart"
+      },
+      "result": {
+        "status": "fail",
+        "note": "2026-03-31 真实反馈：其实还是单纯的移动，机械滑块感，没有调用任何动作。",
+        "updated_at": "2026-03-31T13:41:54.230Z"
+      }
+    },
+    {
       "id": "bubble-plain",
       "category": "single-event",
       "title": "普通说话",
@@ -111,6 +136,112 @@
         "status": "pass",
         "note": "",
         "updated_at": "2026-03-28T13:35:10.549Z"
+      }
+    },
+    {
+      "id": "motion-native-move",
+      "category": "single-event",
+      "title": "原生移动系统",
+      "description": "独立触发 motion.play(move)，验证 VPet 原生 walk/crawl/fall/climb move system。",
+      "goal": "确认原生 move system 可作为与 window.move(dx, dy) 分层的独立探索入口，而不是继续把动作层绑回显式位移协议。",
+      "pass_criteria": [
+        "出现明确的原生走路/爬行/跌落一类动作表现",
+        "last_event_type=motion.play",
+        "它与 window.move 的纯位移体感明显不同"
+      ],
+      "payload": {
+        "type": "motion.play",
+        "motion": "move",
+        "priority": 50
+      },
+      "result": {
+        "status": "mixed",
+        "note": "2026-03-31 真实反馈：会触发原生移动系统，可能是爬行，也可能是走路；到屏幕边缘会贴墙爬，还可能出现斜着飞行。说明这条入口能进入原生 move graph，但具体动作受当前环境与内部切换规则影响，不是稳定单一动作。",
+        "updated_at": "2026-03-31T13:52:24.233Z"
+      }
+    },
+    {
+      "id": "native-move-left",
+      "category": "single-event",
+      "title": "原生向左移动",
+      "description": "dev-only：按方向约束原生 move system 走左向 move。",
+      "goal": "确认原生 move system 可以至少被约束到左向，而不是完全随机挑一条当前可触发 move。",
+      "pass_criteria": [
+        "明显向左移动",
+        "是原生 move 动作，不是纯拖窗",
+        "不会立刻跑成反向 move"
+      ],
+      "payload": {
+        "type": "native.move.direction",
+        "direction": "left"
+      },
+      "result": {
+        "status": "fail",
+        "note": "2026-03-31 真实反馈：在哪都是，会立刻跑到屏幕上方，贴边上方，然后向左爬。说明当前 direction 约束没有稳定落在普通左向 move，而是提前选中了带贴边定位的 move。",
+        "updated_at": "2026-03-31T14:43:06.169Z"
+      }
+    },
+    {
+      "id": "native-move-right",
+      "category": "single-event",
+      "title": "原生向右移动",
+      "description": "dev-only：按方向约束原生 move system 走右向 move。",
+      "goal": "确认原生 move system 可以至少被约束到右向，而不是完全随机挑一条当前可触发 move。",
+      "pass_criteria": [
+        "明显向右移动",
+        "是原生 move 动作，不是纯拖窗",
+        "不会立刻跑成反向 move"
+      ],
+      "payload": {
+        "type": "native.move.direction",
+        "direction": "right"
+      },
+      "result": {
+        "status": "fail",
+        "note": "在哪都是，会立刻跑到屏幕上方，贴边上方，然后向右爬",
+        "updated_at": "2026-03-31T14:43:16.165Z"
+      }
+    },
+    {
+      "id": "native-move-up",
+      "category": "single-event",
+      "title": "原生向上移动",
+      "description": "dev-only：按方向约束原生 move system 走上向 move。",
+      "goal": "确认原生 move system 的 upward 分支可被单独触发，并观察是否自然切到 climb.top 一类 graph。",
+      "pass_criteria": [
+        "明显存在向上趋势",
+        "是原生 move 动作，不是纯拖窗",
+        "表现可解释，不是随机乱飞"
+      ],
+      "payload": {
+        "type": "native.move.direction",
+        "direction": "up"
+      },
+      "result": {
+        "status": "fail",
+        "note": "在哪都是，会立刻跑到屏幕左边，贴边左边，然后向上爬",
+        "updated_at": "2026-03-31T14:43:32.055Z"
+      }
+    },
+    {
+      "id": "native-move-down",
+      "category": "single-event",
+      "title": "原生向下移动",
+      "description": "dev-only：按方向约束原生 move system 走下向 move。",
+      "goal": "确认原生 move system 的 downward 分支可被单独触发，并观察是否切到 fall 一类 graph。",
+      "pass_criteria": [
+        "明显存在向下趋势",
+        "是原生 move 动作，不是纯拖窗",
+        "表现可解释，不是随机乱飞"
+      ],
+      "payload": {
+        "type": "native.move.direction",
+        "direction": "down"
+      },
+      "result": {
+        "status": "fail",
+        "note": "在哪都是，会立刻跑到屏幕左边，贴边左边，然后向下爬",
+        "updated_at": "2026-03-31T14:43:39.923Z"
       }
     },
     {
@@ -134,6 +265,66 @@
         "status": "pass",
         "note": "",
         "updated_at": "2026-03-28T13:35:23.879Z"
+      }
+    },
+    {
+      "id": "emotion-thinking",
+      "category": "single-event",
+      "title": "Emotion Thinking",
+      "description": "验证 emotion.set(thinking) 仍稳定落到 think graph。",
+      "goal": "确认 phase 1 正式 emotion alias 不依赖更大范围的 graph 白名单扩张也能稳定工作。",
+      "pass_criteria": [
+        "显示进入 think 相关视觉",
+        "last_event_type=emotion.set"
+      ],
+      "payload": {
+        "type": "emotion.set",
+        "emotion": "thinking"
+      },
+      "result": {
+        "status": "untested",
+        "note": "2026-04-01 新增：phase 1 emotion alias 回归项，等待你在真实 VPet 上回写。",
+        "updated_at": "2026-04-01T00:00:00.000Z"
+      }
+    },
+    {
+      "id": "emotion-pinch",
+      "category": "single-event",
+      "title": "Emotion Pinch",
+      "description": "验证 emotion.set(pinch) 的正式 phase 1 alias。",
+      "goal": "确认 phase 1 仍保留 pinch 这条稳定情绪/graph 映射。",
+      "pass_criteria": [
+        "显示进入 pinch 相关视觉",
+        "last_event_type=emotion.set"
+      ],
+      "payload": {
+        "type": "emotion.set",
+        "emotion": "pinch"
+      },
+      "result": {
+        "status": "untested",
+        "note": "2026-04-01 新增：phase 1 emotion alias 回归项，等待你在真实 VPet 上回写。",
+        "updated_at": "2026-04-01T00:00:00.000Z"
+      }
+    },
+    {
+      "id": "emotion-shy-legacy",
+      "category": "single-event",
+      "title": "Emotion Shy Legacy",
+      "description": "验证 shy 仍作为 legacy 兼容近似落到 pinch，而不是被误当成新的正式 emotion。",
+      "goal": "确认 phase 1 在不扩正式语义面的前提下，仍保留既有 shy 兼容行为。",
+      "pass_criteria": [
+        "表现接近 pinch",
+        "last_event_type=emotion.set"
+      ],
+      "payload": {
+        "type": "emotion.set",
+        "emotion": "shy"
+      },
+      "result": {
+        "status": "untested",
+        "note": "2026-04-01 新增：仅用于验证 legacy≈pinch 兼容，不能把通过结果解读为 phase 1 新增正式 emotion。",
+        "updated_at": "2026-04-01T00:00:00.000Z"
       }
     },
     {
