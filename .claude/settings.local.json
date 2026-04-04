@@ -1,8 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Skill(context-budget-explore)",
-      "WebSearch"
+      "Skill(context-budget-explore)"
     ]
   }
 }
+
