@@ -1,0 +1,78 @@
+# Handoff 索引
+
+## 最新 handoff
+- [2026-05-01-018-devflow-migration.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.devflow\desktop-pet-vpet-body-bridge\handoffs\2026-05-01-018-devflow-migration.md)
+
+## 历史记录
+- `2026-03-27-001-phase1-import.md`
+  - 阶段：Phase 1 历史导入
+  - 状态：historical
+  - 说明：由旧 `.codex/explore/desktop-pet-vpet-body-bridge/handoffs/2026-03-27-143607-vpet-body-bridge-phase1.md` 提炼导入
+- `2026-03-27-002-pluginized-bridge.md`
+  - 阶段：插件化收敛后续接
+  - 状态：historical
+  - 说明：记录插件化完成后的第一版续接摘要
+- `2026-03-27-003-explore-migration-resume.md`
+  - 阶段：`.explore/` 迁移后续接
+  - 状态：historical
+  - 说明：记录 `.explore/` 迁移后的续接上下文
+- `2026-03-27-004-window-move-state-loop.md`
+  - 阶段：`window.move` + 最小状态回传闭环
+  - 状态：historical
+  - 说明：记录基础闭环打通后的上一份 handoff
+- `2026-03-27-005-combo-validation-state-expansion.md`
+  - 阶段：组合体感验证 + 状态扩展
+  - 状态：historical
+  - 说明：记录上一轮组合体验与状态扩展结果
+- `2026-03-27-006-sequence-scenario-entry.md`
+  - 阶段：sequence/scenario 联调入口
+  - 状态：historical
+  - 说明：记录 sequence/scenario 入口落地时的主要实现与验证
+- `2026-03-27-007-context-save-sequence-state.md`
+  - 阶段：context save / resume-ready
+  - 状态：historical
+  - 说明：上下文压缩后的最新恢复入口
+- `2026-03-28-008-sleep-resume-ready.md`
+  - 阶段：sleep handoff / startup fixed / long-sequence ready
+  - 状态：historical
+  - 说明：收口标准启动链路并切到 4 步真实联调前的睡前恢复入口
+- `2026-03-28-009-timeline-observability-legacy-ui-demotion.md`
+  - 阶段：timeline observability / legacy UI demotion
+  - 状态：historical
+  - 说明：记录高频真实联调、`last_event_at` 落地和 `move.intent` 从联调 UI 退场后的恢复入口
+- `2026-03-28-010-smart-move-and-sequence-gating-next.md`
+  - 阶段：smart move / sequence gating next
+  - 状态：historical
+  - 说明：记录移动体感收口、`window.move.style` 落地，以及下一步切到“动作完成门控”的恢复入口
+- `2026-03-28-011-sequence-wait-for-gating-landed.md`
+  - 阶段：sequence wait_for gating landed
+  - 状态：historical
+  - 说明：记录 `wait_for=move_complete|motion_complete` 落地，以及下一步切到真实 VPet 复测的恢复入口
+- `2026-03-29-012-sleep-handoff-after-sequence-gating.md`
+  - 阶段：sleep handoff after sequence gating
+  - 状态：historical
+  - 说明：记录睡前文档收口、明早恢复提示词，以及下一步切到真实 VPet 复测的恢复入口
+- `2026-03-29-013-sleep-handoff-after-event-correlation.md`
+  - 阶段：sleep handoff after event correlation
+  - 状态：historical
+  - 说明：记录事件关联字段落地、6 步 story sequence 定义完成，以及下一步由你自己做真实联调回写的恢复入口
+- `2026-03-30-014-display-control-surface-and-rest-handoff.md`
+  - 阶段：display control surface / rest handoff
+  - 状态：historical
+  - 说明：记录展示层本体可控范围梳理、全控扩展方案专题文档、最新恢复入口与提交边界
+- `2026-03-31-015-phase1-sequence-acceptable-walk-next.md`
+  - 阶段：phase 1 sequence acceptable / walk next
+  - 状态：historical
+  - 说明：记录 6 步 story sequence 已收口到可接受范围、`motion_recovered` 落地，以及下一步转向走路体感问题
+- `2026-03-31-016-native-move-direction-paused.md`
+  - 阶段：native move direction paused
+  - 状态：historical
+  - 说明：记录原生 move system 探索、`native.move.direction` 第一版真实结果，以及当前决定先暂停此分支只保留文档与恢复入口
+- `2026-04-01-017-phase1-emotion-cleanup-pause.md`
+  - 阶段：phase 1 emotion cleanup pause
+  - 状态：historical
+  - 说明：记录 phase 1 emotion alias 边界收口、联调页与 quick-tests 同步、当前暂停时的继续入口，以及可直接复制的恢复提示词
+- `2026-05-01-018-devflow-migration.md`
+  - 阶段：devflow migration
+  - 状态：latest
+  - 说明：记录从 `context-budget-explore` / `.explore` 迁移到 `devflow` / `.devflow` 后的恢复入口与注意事项

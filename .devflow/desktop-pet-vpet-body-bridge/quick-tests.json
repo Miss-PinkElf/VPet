@@ -1,0 +1,602 @@
+{
+  "current_focus_test_id": "sequence-think-speak-move-touch-speak-recover",
+  "phase": "phase-1-front-end-contract-validation",
+  "purpose": "当前阶段测试重点是验证 VPet 作为前端执行层时，第一阶段正式协议是否已经足够稳定可调用。",
+  "watch_fields": [
+    "left",
+    "top",
+    "right",
+    "bottom",
+    "display_name",
+    "display_animat",
+    "bubble_visible",
+    "last_event_type",
+    "last_event_id",
+    "last_sequence_name",
+    "last_step_index",
+    "last_event_at"
+  ],
+  "notes": [
+    "优先比较事件触发后的短时间窗口状态变化，不要用长时间窗口混入 VPet 自主移动噪声。",
+    "当前阶段重点不是再补更多工作态字段，而是确认正式协议和时间线观测是否够用。",
+    "如果某条 sequence 含重复事件类型，例如两次 bubble.show，优先结合 last_event_id / last_sequence_name / last_step_index 观察是不是同一条步骤。",
+    "native move 分支当前已暂停；除非后续明确重开，否则不要继续把 native.move.direction 当成当前主线测试焦点。",
+    "当前主线基线仍以 phase 1 正式协议为准；如需做回归确认，优先参考 sequence-think-speak-move-touch-speak-recover。",
+    "phase 1 当前正式 emotion alias 以 think / thinking / pinch 为准；shy 只保留 legacy≈pinch 兼容，不作为新增正式语义。"
+  ],
+  "tests": [
+    {
+      "id": "move-right-120",
+      "category": "single-event",
+      "title": "右移 120",
+      "description": "验证显式 window.move 向右位移。",
+      "goal": "确认正式移动协议 window.move(dx, dy) 可稳定驱动前端位移。",
+      "pass_criteria": [
+        "left 增加",
+        "right 相应减少",
+        "last_event_type=window.move"
+      ],
+      "payload": {
+        "type": "window.move",
+        "dx": 120,
+        "dy": 0,
+        "style": "smart"
+      },
+      "result": {
+        "status": "pass",
+        "note": "2026-03-29 隔离复测通过：baseline=default，delta_left=120.0，delta_top=0.0，last_event_type=window.move。",
+        "updated_at": "2026-03-29T04:01:25.047595Z"
+      }
+    },
+    {
+      "id": "move-left-120",
+      "category": "single-event",
+      "title": "左移 120",
+      "description": "验证显式 window.move 向左位移。",
+      "goal": "确认负向位移的方向和增量正确。",
+      "pass_criteria": [
+        "left 减少",
+        "right 相应增加",
+        "last_event_type=window.move"
+      ],
+      "payload": {
+        "type": "window.move",
+        "dx": -120,
+        "dy": 0,
+        "style": "smart"
+      },
+      "result": {
+        "status": "pass",
+        "note": "2026-03-29 隔离复测通过：baseline=default，delta_left=-120.0，delta_top=0.0，last_event_type=window.move。",
+        "updated_at": "2026-03-29T04:02:00.629453Z"
+      }
+    },
+    {
+      "id": "move-diagonal",
+      "category": "single-event",
+      "title": "斜向位移",
+      "description": "验证 window.move 的水平和垂直增量同时生效。",
+      "goal": "确认 dx 和 dy 能同时稳定作用。",
+      "pass_criteria": [
+        "left/top 同时发生预期方向变化",
+        "last_event_type=window.move"
+      ],
+      "payload": {
+        "type": "window.move",
+        "dx": 90,
+        "dy": -20,
+        "style": "smart"
+      },
+      "result": {
+        "status": "pass",
+        "note": "2026-03-29 隔离复测通过：baseline=default，delta_left=89.6，delta_top=-19.2，与 90/-20 目标只差 0.8 逻辑单位内。",
+        "updated_at": "2026-03-29T04:02:51.911777Z"
+      }
+    },
+    {
+      "id": "move-smart-medium-right-80",
+      "category": "single-event",
+      "title": "Smart 中距右移体感",
+      "description": "专门观察 style=smart 在中短距离下的走位体感。",
+      "goal": "确认 phase 1 的显式位移仍然独立于原生 move graph，但不再呈现明显的匀速滑块感。",
+      "pass_criteria": [
+        "不是瞬移",
+        "不是明显的匀速机械分片",
+        "体感更接近自然走位而不是线性拖窗"
+      ],
+      "payload": {
+        "type": "window.move",
+        "dx": 80,
+        "dy": 0,
+        "style": "smart"
+      },
+      "result": {
+        "status": "fail",
+        "note": "2026-03-31 真实反馈：其实还是单纯的移动，机械滑块感，没有调用任何动作。",
+        "updated_at": "2026-03-31T13:41:54.230Z"
+      }
+    },
+    {
+      "id": "bubble-plain",
+      "category": "single-event",
+      "title": "普通说话",
+      "description": "验证基础 bubble.show。",
+      "goal": "确认前端能稳定显示文本气泡。",
+      "pass_criteria": [
+        "气泡出现",
+        "文本正确",
+        "last_event_type=bubble.show"
+      ],
+      "payload": {
+        "type": "bubble.show",
+        "text": "这是当前阶段的普通说话测试。",
+        "duration_ms": 5000
+      },
+      "result": {
+        "status": "pass",
+        "note": "",
+        "updated_at": "2026-03-28T13:35:10.549Z"
+      }
+    },
+    {
+      "id": "motion-native-move",
+      "category": "single-event",
+      "title": "原生移动系统",
+      "description": "独立触发 motion.play(move)，验证 VPet 原生 walk/crawl/fall/climb move system。",
+      "goal": "确认原生 move system 可作为与 window.move(dx, dy) 分层的独立探索入口，而不是继续把动作层绑回显式位移协议。",
+      "pass_criteria": [
+        "出现明确的原生走路/爬行/跌落一类动作表现",
+        "last_event_type=motion.play",
+        "它与 window.move 的纯位移体感明显不同"
+      ],
+      "payload": {
+        "type": "motion.play",
+        "motion": "move",
+        "priority": 50
+      },
+      "result": {
+        "status": "mixed",
+        "note": "2026-03-31 真实反馈：会触发原生移动系统，可能是爬行，也可能是走路；到屏幕边缘会贴墙爬，还可能出现斜着飞行。说明这条入口能进入原生 move graph，但具体动作受当前环境与内部切换规则影响，不是稳定单一动作。",
+        "updated_at": "2026-03-31T13:52:24.233Z"
+      }
+    },
+    {
+      "id": "native-move-left",
+      "category": "single-event",
+      "title": "原生向左移动",
+      "description": "dev-only：按方向约束原生 move system 走左向 move。",
+      "goal": "确认原生 move system 可以至少被约束到左向，而不是完全随机挑一条当前可触发 move。",
+      "pass_criteria": [
+        "明显向左移动",
+        "是原生 move 动作，不是纯拖窗",
+        "不会立刻跑成反向 move"
+      ],
+      "payload": {
+        "type": "native.move.direction",
+        "direction": "left"
+      },
+      "result": {
+        "status": "fail",
+        "note": "2026-03-31 真实反馈：在哪都是，会立刻跑到屏幕上方，贴边上方，然后向左爬。说明当前 direction 约束没有稳定落在普通左向 move，而是提前选中了带贴边定位的 move。",
+        "updated_at": "2026-03-31T14:43:06.169Z"
+      }
+    },
+    {
+      "id": "native-move-right",
+      "category": "single-event",
+      "title": "原生向右移动",
+      "description": "dev-only：按方向约束原生 move system 走右向 move。",
+      "goal": "确认原生 move system 可以至少被约束到右向，而不是完全随机挑一条当前可触发 move。",
+      "pass_criteria": [
+        "明显向右移动",
+        "是原生 move 动作，不是纯拖窗",
+        "不会立刻跑成反向 move"
+      ],
+      "payload": {
+        "type": "native.move.direction",
+        "direction": "right"
+      },
+      "result": {
+        "status": "fail",
+        "note": "在哪都是，会立刻跑到屏幕上方，贴边上方，然后向右爬",
+        "updated_at": "2026-03-31T14:43:16.165Z"
+      }
+    },
+    {
+      "id": "native-move-up",
+      "category": "single-event",
+      "title": "原生向上移动",
+      "description": "dev-only：按方向约束原生 move system 走上向 move。",
+      "goal": "确认原生 move system 的 upward 分支可被单独触发，并观察是否自然切到 climb.top 一类 graph。",
+      "pass_criteria": [
+        "明显存在向上趋势",
+        "是原生 move 动作，不是纯拖窗",
+        "表现可解释，不是随机乱飞"
+      ],
+      "payload": {
+        "type": "native.move.direction",
+        "direction": "up"
+      },
+      "result": {
+        "status": "fail",
+        "note": "在哪都是，会立刻跑到屏幕左边，贴边左边，然后向上爬",
+        "updated_at": "2026-03-31T14:43:32.055Z"
+      }
+    },
+    {
+      "id": "native-move-down",
+      "category": "single-event",
+      "title": "原生向下移动",
+      "description": "dev-only：按方向约束原生 move system 走下向 move。",
+      "goal": "确认原生 move system 的 downward 分支可被单独触发，并观察是否切到 fall 一类 graph。",
+      "pass_criteria": [
+        "明显存在向下趋势",
+        "是原生 move 动作，不是纯拖窗",
+        "表现可解释，不是随机乱飞"
+      ],
+      "payload": {
+        "type": "native.move.direction",
+        "direction": "down"
+      },
+      "result": {
+        "status": "fail",
+        "note": "在哪都是，会立刻跑到屏幕左边，贴边左边，然后向下爬",
+        "updated_at": "2026-03-31T14:43:39.923Z"
+      }
+    },
+    {
+      "id": "bubble-think-graph",
+      "category": "single-event",
+      "title": "思考说话",
+      "description": "验证 bubble.show 搭配 think graph。",
+      "goal": "确认说话时可稳定挂接当前承诺 graph。",
+      "pass_criteria": [
+        "显示切入 think 相关视觉",
+        "气泡出现",
+        "last_event_type=bubble.show"
+      ],
+      "payload": {
+        "type": "bubble.show",
+        "text": "我先想一下，再回答你。",
+        "duration_ms": 5000,
+        "graph": "think"
+      },
+      "result": {
+        "status": "pass",
+        "note": "",
+        "updated_at": "2026-03-28T13:35:23.879Z"
+      }
+    },
+    {
+      "id": "emotion-thinking",
+      "category": "single-event",
+      "title": "Emotion Thinking",
+      "description": "验证 emotion.set(thinking) 仍稳定落到 think graph。",
+      "goal": "确认 phase 1 正式 emotion alias 不依赖更大范围的 graph 白名单扩张也能稳定工作。",
+      "pass_criteria": [
+        "显示进入 think 相关视觉",
+        "last_event_type=emotion.set"
+      ],
+      "payload": {
+        "type": "emotion.set",
+        "emotion": "thinking"
+      },
+      "result": {
+        "status": "untested",
+        "note": "2026-04-01 新增：phase 1 emotion alias 回归项，等待你在真实 VPet 上回写。",
+        "updated_at": "2026-04-01T00:00:00.000Z"
+      }
+    },
+    {
+      "id": "emotion-pinch",
+      "category": "single-event",
+      "title": "Emotion Pinch",
+      "description": "验证 emotion.set(pinch) 的正式 phase 1 alias。",
+      "goal": "确认 phase 1 仍保留 pinch 这条稳定情绪/graph 映射。",
+      "pass_criteria": [
+        "显示进入 pinch 相关视觉",
+        "last_event_type=emotion.set"
+      ],
+      "payload": {
+        "type": "emotion.set",
+        "emotion": "pinch"
+      },
+      "result": {
+        "status": "untested",
+        "note": "2026-04-01 新增：phase 1 emotion alias 回归项，等待你在真实 VPet 上回写。",
+        "updated_at": "2026-04-01T00:00:00.000Z"
+      }
+    },
+    {
+      "id": "emotion-shy-legacy",
+      "category": "single-event",
+      "title": "Emotion Shy Legacy",
+      "description": "验证 shy 仍作为 legacy 兼容近似落到 pinch，而不是被误当成新的正式 emotion。",
+      "goal": "确认 phase 1 在不扩正式语义面的前提下，仍保留既有 shy 兼容行为。",
+      "pass_criteria": [
+        "表现接近 pinch",
+        "last_event_type=emotion.set"
+      ],
+      "payload": {
+        "type": "emotion.set",
+        "emotion": "shy"
+      },
+      "result": {
+        "status": "untested",
+        "note": "2026-04-01 新增：仅用于验证 legacy≈pinch 兼容，不能把通过结果解读为 phase 1 新增正式 emotion。",
+        "updated_at": "2026-04-01T00:00:00.000Z"
+      }
+    },
+    {
+      "id": "motion-touch-head",
+      "category": "single-event",
+      "title": "摸头动作",
+      "description": "验证单独动作入口 touch_head。",
+      "goal": "确认 motion.play 的独立动作路径稳定。",
+      "pass_criteria": [
+        "display_name 落到 touch_head 或对应动作",
+        "last_event_type=motion.play"
+      ],
+      "payload": {
+        "type": "motion.play",
+        "motion": "touch_head",
+        "priority": 50
+      },
+      "result": {
+        "status": "pass",
+        "note": "",
+        "updated_at": "2026-03-28T13:35:32.422Z"
+      }
+    },
+    {
+      "id": "motion-touch-body",
+      "category": "single-event",
+      "title": "摸身体动作",
+      "description": "验证单独动作入口 touch_body。",
+      "goal": "确认第二个核心交互动作也稳定可用。",
+      "pass_criteria": [
+        "动作触发明显",
+        "last_event_type=motion.play"
+      ],
+      "payload": {
+        "type": "motion.play",
+        "motion": "touch_body",
+        "priority": 50
+      },
+      "result": {
+        "status": "pass",
+        "note": "",
+        "updated_at": "2026-03-28T13:35:46.661Z"
+      }
+    },
+    {
+      "id": "mode-thinking",
+      "category": "single-event",
+      "title": "切入 thinking",
+      "description": "验证 mode.switch(thinking)。",
+      "goal": "确认高层 mode 切换成立。",
+      "pass_criteria": [
+        "display_name/display_animat 进入 think 态",
+        "last_event_type=mode.switch"
+      ],
+      "payload": {
+        "type": "mode.switch",
+        "mode": "thinking"
+      },
+      "result": {
+        "status": "pass",
+        "note": "",
+        "updated_at": "2026-03-28T13:35:52.024Z"
+      }
+    },
+    {
+      "id": "mode-normal",
+      "category": "single-event",
+      "title": "恢复 normal",
+      "description": "验证 mode.switch(normal)。",
+      "goal": "确认能从思考态或动作态回归默认态。",
+      "pass_criteria": [
+        "显示回到默认态",
+        "last_event_type=mode.switch"
+      ],
+      "payload": {
+        "type": "mode.switch",
+        "mode": "normal"
+      },
+      "result": {
+        "status": "pass",
+        "note": "",
+        "updated_at": "2026-03-28T13:35:56.534Z"
+      }
+    },
+    {
+      "id": "sequence-thinking-walk-think",
+      "category": "sequence",
+      "title": "思考 -> 移动 -> 说话 -> 恢复",
+      "description": "当前阶段第一条核心 4 步长链路。",
+      "goal": "确认后端编排 -> 前端执行 -> 状态回传这一整条链路可解释。",
+      "pass_criteria": [
+        "时间线能读出 mode.switch -> window.move -> bubble.show -> mode.switch",
+        "last_event_at 可区分事件消费时间",
+        "整体体感稳定"
+      ],
+      "payload": {
+        "name": "thinking-walk-speak-normal",
+        "steps": [
+          {
+            "event": {
+              "type": "mode.switch",
+              "mode": "thinking"
+            },
+            "wait_for": "event_applied"
+          },
+          {
+            "event": {
+              "type": "window.move",
+              "dx": 90,
+              "dy": -20,
+              "style": "smart"
+            },
+            "wait_for": "move_complete",
+            "wait_timeout_ms": 5000,
+            "settle_ms": 120
+          },
+          {
+            "event": {
+              "type": "bubble.show",
+              "text": "我先想一下，再边移动边回答。",
+              "duration_ms": 5000,
+              "graph": "think"
+            }
+          },
+          {
+            "event": {
+              "type": "mode.switch",
+              "mode": "normal"
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "pass",
+        "note": "2026-03-29 隔离复测通过：mode.switch -> window.move -> bubble.show -> mode.switch 顺序正确；bubble.show 发生在 move 落点稳定之后。",
+        "updated_at": "2026-03-29T04:04:00.168305Z"
+      }
+    },
+    {
+      "id": "sequence-bubble-move-touch-recover",
+      "category": "sequence",
+      "title": "说话 -> 移动 -> 摸头 -> 恢复",
+      "description": "当前阶段第二条核心 4 步长链路。",
+      "goal": "确认 bubble / move / motion 的组合链路稳定。",
+      "pass_criteria": [
+        "时间线能读出 bubble.show -> window.move -> motion.play -> mode.switch",
+        "touch_head 能真实落到 display_name",
+        "整体体感稳定"
+      ],
+      "payload": {
+        "name": "bubble-move-touch-recover",
+        "steps": [
+          {
+            "event": {
+              "type": "bubble.show",
+              "text": "这次我连续做四步给你看。",
+              "duration_ms": 5000,
+              "expression": "shy"
+            },
+            "wait_for": "event_applied"
+          },
+          {
+            "event": {
+              "type": "window.move",
+              "dx": -110,
+              "dy": 20,
+              "style": "smart"
+            },
+            "wait_for": "move_complete",
+            "wait_timeout_ms": 5000,
+            "settle_ms": 120
+          },
+          {
+            "event": {
+              "type": "motion.play",
+              "motion": "touch_head",
+              "priority": 55
+            },
+            "wait_for": "motion_recovered",
+            "wait_timeout_ms": 6000,
+            "settle_ms": 320
+          },
+          {
+            "event": {
+              "type": "mode.switch",
+              "mode": "normal"
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "pass",
+        "note": "2026-03-29 隔离复测通过：bubble.show -> window.move -> motion.play -> mode.switch 顺序正确；touch_head 走完 A_Start/B_Loop/C_End 并回到 default 后才进入 normal。bubble_visible 仍有视觉残留，但不再影响事件顺序。",
+        "updated_at": "2026-03-29T04:05:07.383207Z"
+      }
+    },
+    {
+      "id": "sequence-think-speak-move-touch-speak-recover",
+      "category": "sequence",
+      "title": "思考 -> 说话 -> 移动 -> 摸头 -> 再说话 -> 恢复",
+      "description": "新增的 6 步 story sequence，用于验证重复 bubble.show 时的事件关联字段。",
+      "goal": "确认后端能把更长链路的每一步和 VPet 实际消费事件一一对上，而不是只靠 last_event_type 猜测。",
+      "pass_criteria": [
+        "时间线能读出 mode.switch -> bubble.show -> window.move -> motion.play -> bubble.show -> mode.switch",
+        "第二次 bubble.show 能通过 last_event_id / last_step_index 与第一次明确区分",
+        "touch_head 完成后再进入第二次 bubble.show"
+      ],
+      "payload": {
+        "name": "think-speak-move-touch-speak-recover",
+        "steps": [
+          {
+            "event": {
+              "type": "mode.switch",
+              "mode": "thinking"
+            },
+            "wait_for": "event_applied"
+          },
+          {
+            "event": {
+              "type": "bubble.show",
+              "text": "我先想一下这件事。",
+              "duration_ms": 4000,
+              "expression": "thinking",
+              "graph": "think"
+            },
+            "wait_for": "event_applied"
+          },
+          {
+            "event": {
+              "type": "window.move",
+              "dx": 80,
+              "dy": -20,
+              "style": "smart"
+            },
+            "wait_for": "move_complete",
+            "wait_timeout_ms": 5000,
+            "settle_ms": 120
+          },
+          {
+            "event": {
+              "type": "motion.play",
+              "motion": "touch_head",
+              "priority": 55
+            },
+            "wait_for": "motion_recovered",
+            "wait_timeout_ms": 6000,
+            "settle_ms": 520
+          },
+          {
+            "event": {
+              "type": "bubble.show",
+              "text": "想好了，我继续说给你听。",
+              "duration_ms": 5000,
+              "expression": "thinking",
+              "graph": "think"
+            },
+            "wait_for": "event_applied",
+            "settle_ms": 520
+          },
+          {
+            "event": {
+              "type": "mode.switch",
+              "mode": "normal"
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "pass",
+        "note": "还行流畅度可以，只有一点点卡顿，可以接受",
+        "updated_at": "2026-03-31T08:34:37.731Z"
+      }
+    }
+  ]
+}

@@ -18,7 +18,7 @@ from ..dependencies import get_services
 router = APIRouter()
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-QUICK_TEST_CATALOG_PATH = REPO_ROOT / '.explore' / 'desktop-pet-vpet-body-bridge' / 'quick-tests.json'
+QUICK_TEST_CATALOG_PATH = REPO_ROOT / '.devflow' / 'desktop-pet-vpet-body-bridge' / 'quick-tests.json'
 
 CONTROL_PAGE_HTML = """
 <!doctype html>

@@ -1,0 +1,432 @@
+# 当前状态
+
+## 当前阶段
+- 阶段 3：phase 1 最小协议已稳定；当前 mission 真相源已迁移到 `devflow`。
+- 当前路径：resume / light migration close。
+- 当前活跃工作流：`$devflow`，不再使用 `$context-budget-explore` 作为新一轮写入入口。
+
+## 已确认的事实
+- VPet 在本项目中的角色已经冻结为身体层 / 前端执行层。
+- Python `backend-agent` 是大脑，不在第一阶段深改 `GameCore`。
+- 当前桥接已收敛到 `VPet.Plugin.AgentBridge/`。
+- 插件由 `MainPlugin.GameLoaded()` 启动，在 `EndGame()` 中释放轮询器。
+- 当前桥接通过 HTTP 轮询 `http://127.0.0.1:18787/vpet/events/next` 获取单条事件。
+- 当前已打通：
+  - `bubble.show`
+  - `motion.play`
+  - `mode.switch`
+  - `emotion.set`
+  - `window.move`
+- `bubble.show + touch_head/touch_body/pinch/thinking` 已改为更接近 VPet 原生的动作+说话编排。
+- 插件 DLL 已输出到 `VPet-Simulator.Windows/mod/1200_AgentBridge/plugin/`。
+- `/dev/control` 已改成更适合联调的下拉式表单。
+- `/dev/control` 已切到显式 `window.move(dx, dy)` 协议，并展示最新状态快照。
+- `/dev/control` 现已不再把组合步骤硬编码在浏览器侧，而是调用后端 `sequence/scenario` 入口。
+- `/dev/control` 已进一步移除 `move.intent` 手动入口；`move.intent` 只保留运行时 legacy 兼容，不再作为联调主入口。
+- `backend-agent` 现新增更轻的 `/dev/quick-test` 页面：
+  - 读取一份包含多个测试项的 JSON
+  - 将其渲染成可点击的测试按钮
+  - 点击后自动判断是单事件还是 sequence，并直接发送
+- `/dev/quick-test` 现在默认从 mission 文件读取测试目录：
+  - `.devflow/desktop-pet-vpet-body-bridge/quick-tests.json`
+  - 页面支持从该文件读取与保存回该文件
+- `quick-tests.json` 现已收口为“当前阶段测试目录”：
+  - 单事件测试
+  - 两条核心 4 步长链路
+  - 观察字段与通过标准
+- `/dev/quick-test` 现已增加“测试结果”区：
+  - 选择一个测试项
+  - 记录 `status + note`
+  - 点击 `Save Result`
+  - 结果将直接回写到 `quick-tests.json`
+- 插件当前会向 `POST /vpet/state` 回传最小状态：
+  - `left`
+  - `top`
+  - `zoom_ratio`
+  - `display_name`
+  - `display_type`
+  - `mode`
+  - `last_event_type`
+- 本轮已把状态快照扩到更适合组合联调的字段：
+  - `right`
+  - `bottom`
+  - `display_animat`
+  - `working_state`
+  - `work_name`
+  - `work_type`
+  - `bubble_visible`
+- 本轮继续补上了时间观测字段：
+  - `last_event_at`
+- 2026-03-27 本地联调已验证一次真实 `window.move`：
+  - 发送 `dx=120, dy=-40`
+  - 状态从 `left=1105.6, top=1188.8` 变为 `left=1225.6, top=1148.8`
+  - 实际增量与请求一致：`delta_left=120, delta_top=-40`
+- 2026-03-27 本轮继续完成了组合体感联调：
+  - `move -> bubble` 在约 `450ms` 间隔下可稳定出现说话气泡
+  - `bubble -> move` 体感稳定，移动时 `bubble_visible=true`
+  - `move -> motion.play(touch_head)` 体感稳定，状态可见 `last_event_type=motion.play`
+  - `move -> bubble.touch_body` 也可用，但切进原生触摸态比 plain bubble 更慢
+- `move.intent` 仍保持最薄运行时兼容，但已在 `/dev/control` 中明确降级为 legacy 入口，不再作为第一阶段主验证路径。
+- `start-vpet-bridge.ps1` 已自动确保运行目录 `Setting.lps` 包含 `onmod:|agentbridge:|`，本地联调少一个常见前置坑。
+- `start-vpet-bridge.ps1` 现会为真实联调链路默认注入更高频的桥接参数：
+  - `VPET_AGENT_BRIDGE_INTERVAL_MS=250`
+  - `VPET_AGENT_BRIDGE_STATE_INTERVAL_MS=500`
+- `backend-agent` 本轮新增了最小编排层：
+  - `GET /api/dev/scenarios`
+  - `POST /api/dev/scenarios/{scenario_id}`
+  - `POST /api/dev/sequences`
+- `/dev/control` 本轮新增了：
+  - 后端维护的 scenario 目录按钮
+  - 自定义 sequence JSON 入口
+- 2026-03-27 本轮已验证：
+  - 代码级路由与 HTML 内容包含新的 sequence/scenario 入口
+  - `DevSequenceOrchestrator` 会按延迟顺序把事件写入事件总线
+  - 在 18788 端口直起当前后端时，新接口可正常访问
+- `backend-agent/run-dev.ps1` 与 `run-dev.sh` 现已默认关闭 `uvicorn --reload`；只有显式传 `-Reload` 或设置 `PET_BACKEND_RELOAD=1` 才会进入热重载模式。
+- `DevSequenceOrchestrator` 当前预设场景已扩到 6 个，其中新增两个 4 步长链路场景：
+  - `thinking-walk-think`
+  - `bubble-move-touch-recover`
+- `/dev/control` 的默认 sequence 示例已改成 4 步：
+  - `mode.switch(thinking)`
+  - `window.move`
+  - `bubble.show(graph=think)`
+  - `mode.switch(normal)`
+- `start-vpet-bridge.ps1` 现已补上两层启动链路收口：
+  - 关闭旧进程时同时合并 `Get-NetTCPConnection` 和 `netstat` 的监听 PID
+  - 启动后必须通过 `/api/dev/scenarios` 和 `/dev/control` 中 `sequence-editor` 的 readiness 校验
+- 2026-03-27 本轮已完成标准 18787 启动链路验证：
+  - 先复现了旧 `uvicorn --reload` 残留导致的 `404 / 旧页面`
+  - 修复后 `.\start-vpet-bridge.ps1 -SkipBuild` 可正常起链
+  - `GET /api/dev/scenarios` 返回 6 个场景
+  - `GET /dev/control` 可见新的 `sequence-editor` 和长链路默认 JSON
+  - `POST /api/dev/scenarios/thinking-walk-think` 返回 `accepted`
+  - `POST /api/dev/sequences` 的 4 步自定义 sequence 返回 `accepted`
+- 2026-03-28 本轮重新编译插件并完成真实长链路时间线采样：
+  - `thinking-walk-think` 在高频链路下可按状态读出：
+    - `mode.switch -> window.move -> bubble.show -> mode.switch`
+    - `last_event_at` 可与 `timestamp` 分离出“事件被消费”与“状态被上报”的时刻
+  - `bubble-move-touch-recover` 可按状态读出：
+    - `bubble.show -> window.move -> motion.play -> mode.switch`
+    - `motion.play(touch_head)` 在真实时间线中能稳定出现在 `display_name=touch_head`
+  - `bubble_visible` 仍会在 `mode.switch(normal)` 之后持续一段时间，说明它更适合表达视觉残留，而不是事件消费顺序
+- 真实采样结论：
+  - 现有 `left / top / right / bottom` 已足够支撑边界与位移验证，不需要额外补“边界距离”字段
+  - `working_state / work_name / work_type` 在当前两条 4 步链路里信息量有限，暂不需要继续扩更多工作态字段
+  - 如果后续还要补字段，优先级应放在事件时序/关联性，而不是 `topmost / hitthrough`
+- `shy -> pinch` 仍是临时近似映射。
+- VPet 在空闲阶段会继续自主移动，长时间窗口采样会混入自然位移；联调时应优先比较事件触发后的短窗口状态变化。
+- 2026-03-28 你在 `quick-tests.json` 中回填的真实测试结果显示：
+  - `bubble.show` / `motion.play` / `mode.switch` 基本稳定通过
+  - `window.move` 相关单测与所有含移动的 sequence 普遍不稳定
+  - 体感表现集中为“乱走 / 乱爬 / 顺序错乱”
+- 本轮已定位一个直接根因：
+  - 桥接层在处理 `window.move` 时，同时调用了 `DisplayMove()` 和 `MoveWindows(...)`
+  - `DisplayMove()` 会进入 VPet 原生 `walk/crawl/fall/climb` 运动图，和显式窗口位移叠加
+  - 这会把“物理位移”和“原生带方向/速度语义的运动图”混在一起
+- 本轮已修正：
+  - `window.move` 改为纯位移，不再附带 `DisplayMove()`
+  - legacy `move.intent` 也同步去掉 `DisplayMove()`，避免继续叠加原生运动图
+- 第二轮 quick test 结果显示：
+  - 单独 `window.move` 已从“乱走/乱爬”收敛到“纯移动不带任何动作”
+  - 两条核心 sequence 已从 fail 收敛到 mixed
+  - 当前主要问题已从“移动协议错误”收敛到“sequence 节奏偏快、动作重合”
+- 本轮已继续收口长链路节奏：
+  - `thinking-walk-think`
+    - `window.move` delay: `420 -> 550`
+    - `bubble.show` delay: `480 -> 700`
+    - `mode.switch(normal)` delay: `520 -> 900`
+  - `bubble-move-touch-recover`
+    - `window.move` delay: `300 -> 500`
+    - `motion.play(touch_head)` delay: `320 -> 650`
+    - `mode.switch(normal)` delay: `650 -> 950`
+  - `/dev/control` 默认 sequence 与 `quick-tests.json` 已同步到这组新 delay
+- 你进一步提出的移动体感目标已明确为：
+  - 短距离不要生硬瞬移
+  - 长距离不要慢滑，应该更接近“跳位/闪现”
+- 当前仓库里没有扫描到可直接承诺的稳定“开门闪现” graph/动作入口，因此本轮先实现为：
+  - `window.move(style=smart)` 默认智能移动
+  - 短距离：分步平滑走位
+  - 长距离：直接跳位
+  - 显式可选：`style=smooth|walk`、`style=snap|teleport`
+- `quick-tests.json` 中所有当前阶段移动测试与两条核心 sequence，现已默认改成 `style=smart`
+- 2026-03-31 本轮已直接开始收口 `window.move(style=smart)` 的体感实现：
+  - 插件内 `smart` 平滑位移已从“固定步数 + 固定步间隔的线性 `MoveWindows(...)` 切片”改为“距离感知总时长 + eased 累进位移”
+  - 该实现仍只使用 `MoveWindows(...)` 做显式位移
+  - 本轮没有把 `DisplayMove()` 或原生 `walk/crawl/fall/climb` move graph 重新绑回 `window.move`
+  - 本轮代码级验证已完成：
+    - `dotnet build 'VPet.Plugin.AgentBridge/VPet.Plugin.AgentBridge.csproj' -c Debug` 通过
+    - `.explore/desktop-pet-vpet-body-bridge/quick-tests.json` 已通过 JSON 解析校验
+  - 你对这轮 eased `smart move` 的最新真实反馈是：
+    - “其实还是单纯的移动，机械滑块感，没有调用任何动作”
+  - 这次反馈已确认：
+    - 问题不再是 pure move 曲线是否够顺
+    - 而是 `window.move` 这条纯显式位移路径天然不会带出任何原生 walk 动作层
+  - 当前最窄的原生 walk 探索入口其实已经存在于桥接里：
+    - `motion.play(move)` -> `Main.DisplayMove()`
+  - 因此下一步不需要先扩新正式协议，就能先验证原生 move system 是否值得单独暴露
+  - 你对 `motion.play(move)` 的最新真实反馈是：
+    - 会触发原生移动系统
+    - 可能是爬行，也可能是走路
+    - 到屏幕边缘会贴墙爬
+    - 还可能出现斜着飞行
+  - 这与源码观察一致：
+    - 原生 move system 不是“播一个固定走路动画”
+    - 而是按当前边缘位置、方向、角色 mode 与兼容 move 规则，在 `walk/crawl/climb/fall` 之间切换
+  - 本轮进一步确认了导致“随机动作感”的直接代码原因：
+    - `Main.DisplayMove` 实际绑定到 `DisplayToMove()`
+    - `DisplayToMove()` 会从 `Core.Graph.GraphConfig.Moves` 随机起点遍历，挑出第一个 `Triggered(this)` 为真的 move 并执行
+    - 因此 `motion.play(move)` 天然是“当前环境下可触发的一条原生 move”，而不是“固定 walk graph”
+  - 本轮还确认了一个很关键的现成入口：
+    - 原生控制台 `winConsole` 已经提供按方向选 move 的 dev helper
+    - 它直接从 `GraphConfig.Moves` 里按 `SpeedX / SpeedY` 符号和 `Checked(...)` 过滤后调用 `move.Display(main)`
+  - 本轮已将这条控制台思路正式接进 bridge 的 dev-only 入口：
+    - `native.move.direction(left|right|up|down)`
+    - 当前实现直接复用“按 `SpeedX / SpeedY` 符号 + `Checked(...)` 过滤”的最小方向约束
+  - 本轮实现已实际落地到代码：
+    - `backend-agent/app/schemas/events.py`
+    - `backend-agent/app/services/behavior_policy_engine.py`
+    - `backend-agent/app/api/routes/dev_control.py`
+    - `VPet.Plugin.AgentBridge/AgentBridgeEvent.cs`
+    - `VPet.Plugin.AgentBridge/AgentBridgePoller.cs`
+  - 本轮代码级验证结果：
+    - `python -m compileall backend-agent/app` 通过
+    - `quick-tests.json` 已通过 JSON 解析校验
+    - 插件完整 `dotnet build` 仍卡在复制到 `mod/1200_AgentBridge/plugin/` 时 DLL 被运行中的 VPet 锁住
+    - 这与当前 mission 既有注意事项一致：如果要完成插件落 DLL，必须先停掉 VPet
+  - 当前角色 `vup` 的 move graph 本体已明确包含：
+    - `walk.left / walk.right / walk.left.slow / walk.right.slow / walk.left.faster / walk.right.faster`
+    - `crawl.left / crawl.right`
+    - `climb.left / climb.right / climb.top.left / climb.top.right`
+    - `fall.left / fall.right`
+- 当前已经确认一个更核心的编排问题：
+  - 现有 sequence/scenario 仍是固定 `delay_ms` 编排
+  - 没有真正等待当前动作/位移完成后再进入下一步
+  - 这正是“动作没做完就进下一个”的主要来源
+- 本轮已完成最小 sequence 完成门控落地：
+  - `DevSequenceStepRequest` 新增：
+    - `wait_for`
+    - `wait_timeout_ms`
+    - `settle_ms`
+  - 当前已支持的门控：
+    - `event_applied`
+    - `move_complete`
+    - `motion_complete`
+- 当前门控实现明确依赖现有状态回传，不深改 `GameCore`：
+  - `move_complete` 通过 `last_event_type / last_event_at` 加目标 `left/top` 落点确认
+  - `motion_complete` 先等待 `motion.play` 被消费，再等待 `display_name/display_type` 离开该动作
+- 当前两条核心长链路已从“主要靠 delay”切到“关键步显式门控”：
+  - `thinking-walk-think`
+    - `window.move(style=smart)` 改为 `wait_for=move_complete`
+  - `bubble-move-touch-recover`
+    - `window.move(style=smart)` 改为 `wait_for=move_complete`
+    - `motion.play(touch_head)` 改为 `wait_for=motion_complete`
+- 2026-03-29 本轮真实隔离复测后继续收口：
+  - `thinking-walk-think` 的首步 `mode.switch(thinking)` 已补为 `wait_for=event_applied`
+  - `bubble-move-touch-recover` 的首步 `bubble.show` 已补为 `wait_for=event_applied`
+  - `move_complete` 的 `left/top` 落点容差已从 `1.5` 放宽到 `6.0`
+- 2026-03-29 本轮已继续把最小事件关联字段接进 phase 1：
+  - 事件侧：
+    - `event_id`
+    - `sequence_name`
+    - `step_index`
+  - 状态侧：
+    - `last_event_id`
+    - `last_sequence_name`
+    - `last_step_index`
+- 当前 sequence 门控已优先按 `event_id` 对齐；如果运行时没有该字段，再回退到 `last_event_type + last_event_at`
+- 本轮已新增一条更长的 story sequence 进入测试目录：
+  - `sequence-think-speak-move-touch-speak-recover`
+  - 该链路刻意包含两次 `bubble.show`，用于验证重复事件类型下的关联字段
+- 当前这条新增 6 步 sequence 只完成了：
+  - 后端 scenario 定义
+  - 联调默认示例
+  - `quick-tests.json` 测试目录
+  - 协议与记录同步
+- 当前这条新增 6 步 sequence 还没有你的真实测试结果；`quick-tests.json` 中保持为 `untested`
+- 2026-03-29 本轮在 fresh start / 真实 GUI / 隔离采样下确认通过：
+  - `move-right-120`
+  - `move-left-120`
+  - `move-diagonal`
+  - `sequence-thinking-walk-think`
+  - `sequence-bubble-move-touch-recover`
+- 本轮真实结论：
+  - 当前 `wait_for` 门控已经足以解决两条核心 sequence 的“动作没做完就进下一步”
+  - `motion_complete` 在 `touch_head` 上暂时不需要下探到原生回调
+  - 当前 phase 1 暂不需要引入 `native_walk`
+- `bubble-move-touch-recover` 中 `bubble_visible` 仍会在 `mode.switch(normal)` 后延迟消失，但已确认这是视觉残留，不再影响事件顺序判断
+- `/dev/control` 默认 sequence 示例与 `.explore/.../quick-tests.json` 已同步切到新的 `wait_for` 语义。
+- `.explore/.../spec/protocol-phase1.md` 已同步收口为“第一阶段已有最小完成门控，但不是所有步骤都已全覆盖”。
+- 本轮代码级验证已完成：
+  - `python -m compileall backend-agent/app` 通过
+  - 使用 `backend-agent/.venv/Scripts/python.exe` 的模拟状态脚本已验证：
+    - `move_complete` 会等到目标位置状态回传后结束
+    - `motion_complete` 会等到动作显示态退出后结束
+- 项目内确实存在动作结束回调链与原生 move 系统：
+  - `Display(..., EndAction)`
+  - `DisplayCEndtoNomal(...)`
+  - 原生 `walk/crawl/fall/climb` move graph
+- 当前 bridge 仍未把所有动作统一挂到原生完成回调上；这仍是后续可选增强，而不是本轮最小门控前提。
+- 2026-03-30 本轮已完成一轮新的源码级控制面梳理：
+  - 当前桥接直接暴露的控制面，仍明显小于 `VPet` 展示层本体真实能力
+  - `VPet` 本体展示层除 phase 1 白名单外，还存在：
+    - `StateTWO`
+    - `StartUP`
+    - `Shutdown`
+    - `LevelUP`
+    - `Music`
+    - `Switch_*`
+    - `SideHide_*`
+    - 全部 `IDEL / MOVE / WORK / Say` 细分 graph
+- 2026-03-30 已确认一个关键技术事实：
+  - `Main.Display(string name, AnimatType, ...)` 已支持按 graph 名直接播放
+  - `Main.Say(text, graphname, force)` 已支持说话时附带指定 graph
+  - 这意味着“展示层大部分资源可被直接点播”在技术上已经成立
+- 2026-03-30 已确认“全控”必须分层：
+  - 资源目录层：告诉后端当前角色有哪些 graph
+  - 直接点播层：按 graph 名播放展示
+  - 行为语义层：封装贴边、探头、摸头、拖拽等复杂行为
+- 2026-03-30 已新增专题设计文档：
+  - `.explore/desktop-pet-vpet-body-bridge/spec/display-control-surface-and-full-control-plan.md`
+- 当前探索结论是：
+  - 以“视觉上把现有展示资源都点出来”为目标，高可行
+  - 以“把全部展示能力继续硬塞进 `motion.play / emotion.set` 白名单”为方向，不建议
+- 当前应继续区分两类控制目标：
+  - graph 资源点播
+  - 高层行为调用
+
+## 工作假设
+- 当前优先级已从“补移动/回传”切到“用后端编排层和更可观测状态继续打磨身体层协议”。
+- 现阶段不需要回退到主工程内置桥接。
+- 当前 `.devflow/desktop-pet-vpet-body-bridge/` 是新的 mission 真相源；旧 `.explore/desktop-pet-vpet-body-bridge/` 与更旧的 `.codex/explore/desktop-pet-vpet-body-bridge/` 仅保留为 legacy 参考。
+- phase 1 正式协议仍以 `spec/protocol-phase1.md` 为准。
+- 展示层全控专题应作为下一阶段扩展设计，和 phase 1 最小协议保持分离。
+
+## 待解决的问题
+- 当前 `window.move(style=smart)` 的问题已经进一步定性：
+  - 它仍然只是纯窗口位移
+  - 即使 eased 后，依然不会有“走路动作被调用”的观感
+- 当前已确认：
+  - `window.move` 纯位移路径本身无法补出原生 walk 体感
+  - 如果还想要“看起来像走路”，下一步必须探索一个和 `window.move(dx, dy)` 正式语义分开的原生 walk / native move 能力
+- 当前尚未确认的是：
+  - `motion.play(move)` 这个现有入口虽然足以进入原生 move system，但是否能被进一步约束成“更可控的原生 walk 入口”
+  - 如果要继续收口，最小问题已变成：
+    - 能否在不改写 `window.move(dx, dy)` 语义的前提下，缩小原生 move 的随机性 / 环境依赖
+  - 如果继续往前走，dev-only 原生 move 入口应该优先做哪一层：
+    - 方向层：`left / right / up / down`
+    - graph 层：`walk.right / crawl.left / climb.top.right`
+- 本轮实现已完成第一优先的最小版：
+  - backend-agent 新增 dev-only 事件：
+    - `native.move.direction`
+  - 插件新增消费逻辑：
+    - `left` -> `SpeedX < 0 && Checked(...)`
+    - `right` -> `SpeedX > 0 && Checked(...)`
+    - `up` -> `SpeedY < 0 && Checked(...)`
+    - `down` -> `SpeedY > 0 && Checked(...)`
+  - `/dev/control` 已新增该事件类型与 `direction` 选择
+  - `quick-tests.json` 已新增四条方向测试：
+    - `native-move-left`
+    - `native-move-right`
+    - `native-move-up`
+    - `native-move-down`
+  - 你对这 4 条方向测试的最新真实结果是：
+    - `native-move-left = fail`
+      - 会先跑到屏幕上方，再贴顶向左爬
+    - `native-move-right = fail`
+      - 会先跑到屏幕上方，再贴顶向右爬
+    - `native-move-up = fail`
+      - 会先跑到屏幕左边，再贴左向上爬
+    - `native-move-down = fail`
+      - 会先跑到屏幕左边，再贴左向下爬
+  - 这与源码直接吻合的根因是：
+    - 当前实现只按 `SpeedX / SpeedY + Checked(...)` 过滤
+    - 但 `move.Display(main)` 在 `LocateType` 存在时会先把窗口 reposition 到对应边缘，再开始 move
+    - 因此当前最小方向约束会被 `climb.*` 这类带 `LocateType` 的 move 抢占
+- 当前 `motion_complete / motion_recovered` 已足以把更长 story sequence 收口到可接受范围：
+  - 它们不再是本轮主阻塞
+- `move.intent` 的运行时薄兼容要保留多久，是否下一轮直接退到纯文档兼容。
+- `emotion -> graph` 是否需要继续做运行时导出，而不是只靠人工映射。
+- phase 2 的 `graph.catalog / graph.play / behavior.invoke / display.reset / display.report` 继续保持冻结，不作为当前轮阻塞项。
+- 2026-04-01 本轮已先对 phase 1 的 emotion alias 边界做一次最小收口：
+  - 插件把 stable alias 与 legacy 近似映射分层写清
+  - 当前正式 alias 继续只认：
+    - `think`
+    - `thinking`
+    - `pinch`
+  - `shy` 继续只保留 runtime legacy≈`pinch` 兼容
+  - `/dev/control` 已同步把 `shy` 明确标成 legacy≈`pinch`
+  - `quick-tests.json` 已补三条当前阶段 emotion 回归项：
+    - `emotion-thinking`
+    - `emotion-pinch`
+    - `emotion-shy-legacy`
+- 本轮没有：
+  - 扩更多 emotion alias
+  - 进入 phase 2 的 `graph.catalog / graph.play`
+  - 重开 native move 分支
+
+## 下一步
+- 新对话恢复时优先读取 `.devflow/desktop-pet-vpet-body-bridge/` 下的 `state.md`、`checkpoints.md`、最新 handoff、`spec/protocol-phase1.md` 和 `quick-tests.json`。
+- 保持 phase 1 最小协议不扩散，继续以 `spec/protocol-phase1.md` 作为正式承诺边界。
+- 当前继续留在 phase 1，不进入 phase 2。
+- 当前 native move 分支先视为 paused：
+  - 已完成记录
+  - 暂不继续实现
+  - 暂不继续测试
+- 当前主线切回：
+  - phase 1 正式协议与现有稳定基线维护
+- 本轮后的判断已经固定：
+  - 不再继续优先微调 pure `window.move` 曲线
+  - 也不把 `DisplayMove()` 重新绑回 `window.move`
+- 当前 focus test 的真实结果已更新：
+  - `quick-tests.json -> move-smart-medium-right-80 = fail`
+- 当前新的 focus test 已切到：
+  - `quick-tests.json -> motion-native-move = mixed`
+- 当前探索后的推荐顺序已收口为：
+  - 第一优先：如果只要最小可用，先做 `native.move.direction`
+    - 直接复用控制台里现成的 `SpeedX / SpeedY + Checked(...)` 过滤方式
+    - 优点是最小改动、最贴近现有源码
+    - 缺点是到边缘仍可能触发 climb/fall 一类兼容 move
+  - 第二优先：如果要更可控，做 `native.move.graph`
+    - 直接按 `GraphConfig.Moves` 里的 `Graph` 名精确选项后调用 `move.Display(main)`
+    - 优点是可以稳定区分 `walk.right`、`crawl.left`、`fall.right`
+    - 缺点是 graph 名明显更角色相关，只适合作为 dev-only 能力
+- 上述探索现在已经转为最小实现：
+  - 当前新的真实联调 focus 应切到：
+    - `quick-tests.json -> native-move-right`
+  - 然后依次验证：
+    - `native-move-left`
+    - `native-move-up`
+    - `native-move-down`
+- 当前这轮真实结果已经证明：
+  - 现版本 `native.move.direction` 还不够可用
+  - 但问题已不再抽象，而是明确落在“move 选择策略过宽”
+- 该分支的恢复入口仍保留在历史 handoff：
+  - `2026-03-31-016-native-move-direction-paused.md`
+- 当前如果不重开 native move，接下来不需要做任何额外切换动作：
+  - 直接把它当作已暂停旁支
+  - 后续在 phase 1 主线继续选新的明确子任务即可
+- 当前新增的 phase 1 emotion 回归项无需我替你做真实联调：
+  - 由你自己在 `/dev/quick-test` 回写
+  - 优先顺序：
+    - `emotion-thinking`
+    - `emotion-pinch`
+    - `emotion-shy-legacy`
+- 当上述 phase 1 体验问题收口后，再进入 phase 2，从 `graph.catalog` 开始
+
+## 最新 handoff
+- [2026-05-01-018-devflow-migration.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.devflow\desktop-pet-vpet-body-bridge\handoffs\2026-05-01-018-devflow-migration.md)
+
+## 最小活跃上下文摘要
+- 当前 mission 有两条并行但不冲突的主线：
+- phase 1 主线：
+  - 最小协议与关键 `wait_for` 门控已稳定
+  - 6 步 story sequence 已完成真实回写，当前结论是：
+    - `sequence-think-speak-move-touch-speak-recover = pass`
+    - 仅剩一点点卡顿，但已在可接受范围内
+  - 当前 phase 1 的真实阻塞已收口为：
+    - native move 分支当前已暂停，等待未来是否重开
+- phase 2 预研主线：
+  - 已确认展示层本体可控面远大于当前桥接白名单
+  - 已产出“展示层可控范围与全控方案”专题文档
+  - “所有动画做映射”应按 `graph.catalog -> graph.play -> behavior.invoke` 推进
+  - 但当前不作为 phase 1 阻塞项
