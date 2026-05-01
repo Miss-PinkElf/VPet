@@ -2,8 +2,9 @@
 
 ## 当前阶段
 - 阶段 3：phase 1 最小协议已稳定；当前 mission 真相源已迁移到 `devflow`。
-- 当前路径：resume / light migration close。
+- 当前路径：resume / handoff close。
 - 当前活跃工作流：`$devflow`，不再使用 `$context-budget-explore` 作为新一轮写入入口。
+- 本次迁移相关文档与必要路径改动已提交：`3a53f16a docs: 迁移 VPet bridge mission 到 devflow`。
 
 ## 已确认的事实
 - VPet 在本项目中的角色已经冻结为身体层 / 前端执行层。
@@ -365,7 +366,7 @@
   - 重开 native move 分支
 
 ## 下一步
-- 新对话恢复时优先读取 `.devflow/desktop-pet-vpet-body-bridge/` 下的 `state.md`、`checkpoints.md`、最新 handoff、`spec/protocol-phase1.md` 和 `quick-tests.json`。
+- 新对话恢复时优先读取 `.devflow/desktop-pet-vpet-body-bridge/` 下的 `state.md`、`checkpoints.md`、最新 handoff、`NEXT-SESSION-PROMPT-desktop-pet-vpet-body-bridge.md`、`spec/protocol-phase1.md` 和 `quick-tests.json`。
 - 保持 phase 1 最小协议不扩散，继续以 `spec/protocol-phase1.md` 作为正式承诺边界。
 - 当前继续留在 phase 1，不进入 phase 2。
 - 当前 native move 分支先视为 paused：
@@ -414,7 +415,7 @@
 - 当上述 phase 1 体验问题收口后，再进入 phase 2，从 `graph.catalog` 开始
 
 ## 最新 handoff
-- [2026-05-01-018-devflow-migration.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.devflow\desktop-pet-vpet-body-bridge\handoffs\2026-05-01-018-devflow-migration.md)
+- [2026-05-01-019-session-close-after-devflow-migration.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.devflow\desktop-pet-vpet-body-bridge\handoffs\2026-05-01-019-session-close-after-devflow-migration.md)
 
 ## 最小活跃上下文摘要
 - 当前 mission 有两条并行但不冲突的主线：

@@ -29,59 +29,7 @@
 > [已归档] 2026-03-31 - Smart Move Easing Pass
 > [已归档] 2026-03-31 - Native Move Direction Dev-Only Entry
 > [已归档] 2026-03-31 - Native Move Paused And Return To Mainline
-
-## Checkpoint 29 - 2026-04-01 Phase 1 Emotion Alias Cleanup
-
-### 当前阶段
-- 阶段 3：继续 phase 1 正式协议维护，不进入 phase 2，也不重开 native move
-
-### 本轮完成内容
-- 在 `VPet.Plugin.AgentBridge/AgentBridgePoller.cs` 中把 graph 解析收口为三层：
-  - 显式 `graph`
-  - stable emotion / expression alias
-  - legacy 近似映射
-- 当前 stable alias 明确保持为：
-  - `think`
-  - `thinking`
-  - `pinch`
-- `shy` 继续只保留为 legacy≈`pinch` 兼容，不升级成新的正式 phase 1 emotion
-- `/dev/control` 已同步更新文案：
-  - `graph` 字段明确为显式优先
-  - `emotion` 字段明确区分正式值与 `shy (legacy≈pinch)`
-- `spec/protocol-phase1.md` 已同步写清这条边界
-- `quick-tests.json` 已补三条 phase 1 emotion 回归项：
-  - `emotion-thinking`
-  - `emotion-pinch`
-  - `emotion-shy-legacy`
-
-### 本轮决策与原因
-- 决策：phase 1 的 emotion alias 继续保持小而明确，避免回到“靠继续堆 alias 承接展示层扩展”的方向
-- 原因：当前主线只需要维护稳定基线；真正的控制面扩张仍然属于冻结中的 phase 2
-
-### 本轮沉淀经验
-- 在 phase 1 里，最容易再次扩散协议面的点不是 move，而是 `emotion.set`
-- 兼容旧调用和值得正式承诺的新语义不是一回事；把 `shy` 显式降级为 legacy 近似，比默默继续把它当正式值更稳
-- `quick-tests.json` 之前对 emotion alias 基本没有单独回归项，这会让协议边界长期只存在于代码和记忆里
-
-### 验证情况
-- 待运行代码级验证：
-  - `python -m compileall backend-agent/app`
-  - `quick-tests.json` JSON 解析校验
-  - `dotnet build 'VPet.Plugin.AgentBridge/VPet.Plugin.AgentBridge.csproj' -c Debug`
-- 若插件 build 失败，仍优先按既有注意事项判断是否为运行中 VPet 锁 DLL
-
-### 下一步
-- 不做真实联调
-- 由你在 `/dev/quick-test` 自己回写：
-  - `emotion-thinking`
-  - `emotion-pinch`
-  - `emotion-shy-legacy`
-- 如果这 3 条稳定，再决定：
-  - 是否将 `emotion -> graph` 这一项从活跃任务里视为已收口
-  - 还是继续保留为“仅在 phase 2 catalog/play 体系下再处理”的开放项
-
-### 可以从活跃上下文中移除的内容
-- “phase 1 的 emotion 边界还只存在于散落硬编码里” 这件事
+> [已归档] 2026-04-01 - Phase 1 Emotion Alias Cleanup
 
 ## Checkpoint 30 - 2026-04-01 Pause Handoff After Phase 1 Emotion Cleanup
 
@@ -133,4 +81,36 @@
 - 新对话恢复时读取 `.devflow/desktop-pet-vpet-body-bridge/` 下的 state / checkpoints / 最新 handoff / protocol / quick-tests
 - 当前仍继续 phase 1，不重开 native move，不提前进入 phase 2
 - 由用户自己在 `/dev/quick-test` 回写 `emotion-thinking / emotion-pinch / emotion-shy-legacy`
+
+## Checkpoint 32 - 2026-05-01 Session Close After DevFlow Migration
+
+### 当前阶段
+- 阶段 3：phase 1 正式协议维护；本次对话收尾并准备跨对话续接
+
+### 本轮完成内容
+- 回顾本次对话，确认已完成：
+  - mission 从 `.explore` 迁移到 `.devflow`
+  - `/dev/quick-test` catalog 路径切到 `.devflow/.../quick-tests.json`
+  - `CONTINUE_VPET_BRIDGE_PROMPT.md` 切到 `$devflow`
+  - 迁移相关文档与必要路径改动已提交
+- 新建本次收尾 handoff：
+  - `handoffs/2026-05-01-019-session-close-after-devflow-migration.md`
+- 新建下一次对话提示词：
+  - `NEXT-SESSION-PROMPT-desktop-pet-vpet-body-bridge.md`
+- 更新：
+  - `state.md`
+  - `handoffs/index.md`
+  - `session-tasks.md`
+
+### 本轮决策与原因
+- 决策：本次收尾只更新 devflow 续接相关记录，不修改 `workflow.md`、`decision-log.md`、`spec/` 或 `bug-log`
+- 原因：本轮没有新的阶段切换、协议设计变更或项目 bug；主要变化是迁移后的暂停与恢复入口
+
+### 下一步
+- 下次对话从 `NEXT-SESSION-PROMPT-desktop-pet-vpet-body-bridge.md` 恢复
+- 等用户在 `/dev/quick-test` 回写：
+  - `emotion-thinking`
+  - `emotion-pinch`
+  - `emotion-shy-legacy`
+- 根据真实结果判断 phase 1 的 `emotion -> graph` 是否完成收口
 

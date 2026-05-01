@@ -1,7 +1,7 @@
 # Handoff 索引
 
 ## 最新 handoff
-- [2026-05-01-018-devflow-migration.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.devflow\desktop-pet-vpet-body-bridge\handoffs\2026-05-01-018-devflow-migration.md)
+- [2026-05-01-019-session-close-after-devflow-migration.md](D:\Users\Mobius\Desktop\mine\AAA-code\VPet\.devflow\desktop-pet-vpet-body-bridge\handoffs\2026-05-01-019-session-close-after-devflow-migration.md)
 
 ## 历史记录
 - `2026-03-27-001-phase1-import.md`
@@ -74,5 +74,9 @@
   - 说明：记录 phase 1 emotion alias 边界收口、联调页与 quick-tests 同步、当前暂停时的继续入口，以及可直接复制的恢复提示词
 - `2026-05-01-018-devflow-migration.md`
   - 阶段：devflow migration
-  - 状态：latest
+  - 状态：historical
   - 说明：记录从 `context-budget-explore` / `.explore` 迁移到 `devflow` / `.devflow` 后的恢复入口与注意事项
+- `2026-05-01-019-session-close-after-devflow-migration.md`
+  - 阶段：session close after devflow migration
+  - 状态：latest
+  - 说明：记录本次对话收尾、迁移提交、剩余任务和下一次对话恢复入口

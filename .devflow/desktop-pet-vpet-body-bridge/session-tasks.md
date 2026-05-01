@@ -11,5 +11,7 @@
 - [x] 梳理展示层本体可控范围并产出全控可行性方案文档
 - [x] 收口 phase 1 的 `emotion -> graph` 边界与回归目录
 - [x] 将 `/dev/quick-test` 的 catalog 读写路径切到 `.devflow/.../quick-tests.json`
+- [x] 提交 devflow 迁移相关文档与必要路径改动
+- [x] 生成本次对话 handoff 与下一次对话提示词
 - [ ] 由用户回写 `emotion-thinking / emotion-pinch / emotion-shy-legacy` 的真实结果
 - [ ] 视需要进入 phase 2 控制面扩展：`graph.catalog -> graph.play -> behavior.invoke`
